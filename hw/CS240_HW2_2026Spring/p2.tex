@@ -1,0 +1,37 @@
+\problem{}
+A student plans to select courses for the coming semester. There are \(m\) course groups, and each group contains several candidate courses.  
+We denote a course by \(X(c,v)\), where \(X\) is the course name, \(c\) denotes its credit cost, and \(v\) denotes its benefit value.
+
+The student may choose at most one course from each group, and the total number of credits used cannot exceed \(W\). Your task is to determine the maximum total benefit that can be obtained under the credit limit. Provide the dynamic programming formulation and the corresponding pseudocode.
+
+\textbf{Example 1:}
+
+Input: \(m=3,\; W=5\)
+
+Group 1: \(A(1,2), B(3,4)\)  
+
+Group 2: \(C(2,2), D(4,5)\)  
+
+Group 3: \(E(1,1), F(2,3), G(3,4)\)
+
+Output: \(7\)
+
+Explanation:  
+An optimal selection is to choose course \(A(1,2)\) from Group 1, course \(C(2,2)\) from Group 2, and course \(F(2,3)\) from Group 3. The total credit cost is \(1+2+2=5\), and the total benefit is \(2+2+3=7\).
+
+\textbf{Example 2:}
+
+Input: \(m=2,\; W=4\)
+
+Group 1: \(A(1,2), B(2,3)\)  
+
+Group 2: \(C(2,4), D(3,5)\)
+
+Output: \(7\)
+
+Explanation:  
+An optimal selection is to choose course \(B(2,3)\) from Group 1 and course \(C(2,4)\) from Group 2. The total credit cost is \(2+2=4\), and the total benefit is \(3+4=7\).
+
+\solution{
+}
+\newpage

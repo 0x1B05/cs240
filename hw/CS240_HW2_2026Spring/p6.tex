@@ -1,0 +1,55 @@
+\problem{}
+Yansen, a student at ShanghaiTech, recently started playing Animal Crossing. The game follows real-time (a week has 7 days).
+
+There are $n$ events, each requiring different materials, and each event is available on a few days of the week. Yansen can complete up to $e$ events per day due to academic and research commitments.
+
+Yansen wants to build a special Gundam and has calculated the materials needed. Starting on Monday, what is the minimum number of days (including rest days) to collect all the materials? (Hint: Network Flow)
+
+\textbf{Input Description}
+
+The first line contains two integers, $n, e$ ($1 \le n \le 1000, 1 \le e \le 100$), separated by a space, representing the number of different events and the maximum number of events Yansen can complete in a day.
+
+The next $n$ lines, each containing $m_i + 2$ integers $c_i, m_i, a_{i1}, a_{i2}, \dots, a_{im_i}$ ($1 \le c_i \le 10^5, 1 \le m_i \le 7, 1 \le a_{ij} \le 7$, for any $j \neq k, a_{ij} \neq a_{ik}$), represent the required number of completions $c_i$, and the days of the week when the event is available.
+
+\textbf{Output Description}
+
+Output a single integer representing the minimum number of days Yansen needs to gather all the required materials.
+
+\textbf{Input:}
+
+5 2
+
+2 4 1 3 5 7
+
+2 3 2 4 6
+
+2 2 1 2
+
+2 2 3 4
+
+2 2 5 6
+
+
+\textbf{Output:}
+5
+
+
+\textbf{Explanation:}
+
+The solution can proceed as follows:
+
+Day 1 (Monday): Complete events 1 and 3 once each.
+
+Day 2 (Tuesday): Complete events 2 and 3 once each.
+
+Day 3 (Wednesday): Complete events 1 and 4 once each.
+
+Day 4 (Thursday): Complete events 2 and 4 once each.
+
+Day 5 (Friday): Complete event 5 twice.
+
+Exactly 5 days are needed to finish all requirements.
+
+\solution{
+}
+\newpage
