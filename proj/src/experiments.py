@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -486,15 +487,34 @@ def _run_selector(
     elif selector == "relevance_ratio":
         result = relevance_ratio(features, budget)
     elif selector == "random_seeded":
-        result = seeded_random(features, budget, seed=config.seed)
+        result = seeded_random(features, budget, seed=_query_seed(config.seed, features.query_id))
     elif selector == "mmr":
         result = mmr(features, budget, lambda_value=config.mmr_lambda)
     elif selector == "budgeted_greedy":
         result = budgeted_greedy(features, _objective_for(features, objective_name, lambda_value), budget)
     else:
         raise DataValidationError(f"unknown selector: {selector}")
-    runtime_units = len(features.doc_ids) * max(1, len(result.indices))
+    runtime_units = _runtime_units(selector, features, result)
     return result, runtime_units
+
+
+def _query_seed(seed: int, query_id: str) -> int:
+    digest = hashlib.sha1(f"{seed}:{query_id}".encode("utf-8")).hexdigest()
+    return int(digest[:12], 16)
+
+
+def _runtime_units(selector: str, features: FeatureSet, result) -> int:
+    n = len(features.doc_ids)
+    selected = max(1, len(result.indices))
+    if selector == "top_ranked":
+        return n
+    if selector in {"relevance_ratio", "random_seeded"}:
+        return n + n * max(1, n.bit_length())
+    if selector == "mmr":
+        return n * selected + selected * selected
+    if selector == "budgeted_greedy":
+        return n * n * selected
+    return n * selected
 
 
 def _objective_for(features: FeatureSet, objective_name: str, lambda_value: float) -> Objective:

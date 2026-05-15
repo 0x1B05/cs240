@@ -41,7 +41,14 @@ def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> 
         total_cost += features.costs[best]
         remaining.remove(best)
 
-    return SelectionResult(tuple(selected), total_cost, objective.value(selected))
+    greedy = SelectionResult(tuple(selected), total_cost, objective.value(selected))
+    singleton = _best_feasible_singleton(features, objective, budget)
+    if singleton.objective_value is not None and greedy.objective_value is not None:
+        if singleton.objective_value > greedy.objective_value:
+            return singleton
+        if singleton.objective_value == greedy.objective_value and (singleton.total_cost, singleton.indices) < (greedy.total_cost, greedy.indices):
+            return singleton
+    return greedy
 
 
 def top_ranked(features: FeatureSet, budget: int) -> SelectionResult:
@@ -122,6 +129,21 @@ def _select_in_order(features: FeatureSet, order, budget: int) -> SelectionResul
             selected.append(item)
             total_cost += features.costs[item]
     return SelectionResult(tuple(selected), total_cost)
+
+
+def _best_feasible_singleton(features: FeatureSet, objective: Objective, budget: int) -> SelectionResult:
+    feasible = [item for item, cost in enumerate(features.costs) if cost <= budget]
+    if not feasible:
+        return SelectionResult((), 0, 0.0)
+    best = max(
+        feasible,
+        key=lambda item: (
+            objective.value((item,)),
+            -features.costs[item],
+            features.doc_ids[item],
+        ),
+    )
+    return SelectionResult((best,), features.costs[best], objective.value((best,)))
 
 
 def _validate_budget(budget: int) -> None:

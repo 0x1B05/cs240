@@ -86,6 +86,29 @@ def test_run_experiment_writes_required_outputs(tmp_path):
     assert "evidence_f1_mean" in (output_dir / "aggregate_metrics.csv").read_text(encoding="utf-8")
 
 
+def test_runtime_units_reflect_selector_work(tmp_path):
+    output_dir = tmp_path / "runtime-run"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(18,),
+            candidate_sizes=(5,),
+            selectors=("top_ranked", "mmr", "budgeted_greedy"),
+            objectives=("combined",),
+            seed=13,
+            optimal_max_items=5,
+        )
+    )
+
+    by_method = {}
+    for row in read_jsonl(output_dir / "per_query_metrics.jsonl"):
+        if row["query_id"] == "q1":
+            by_method[row["method_label"]] = row["runtime_units"]
+
+    assert by_method["top_ranked"] < by_method["mmr"] < by_method["submodular_combined"]
+
+
 def test_run_experiment_refuses_overwrite(tmp_path):
     output_dir = tmp_path / "main-run"
     output_dir.mkdir()
@@ -166,6 +189,35 @@ def test_run_experiment_sample_size_controls_query_subset(tmp_path):
     assert len(second_metrics) == 2
     assert first_config["query_ids"] == [row["query_id"] for row in first_manifest]
     assert {row["query_id"] for row in first_metrics} == {row["query_id"] for row in first_manifest}
+
+
+def test_random_seeded_baseline_is_salted_by_query_id(tmp_path):
+    output_dir = tmp_path / "random-run"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(30,),
+            candidate_sizes=(5,),
+            selectors=("random_seeded",),
+            objectives=("combined",),
+            seed=13,
+            optimal_max_items=5,
+        )
+    )
+
+    random_rows = [row for row in read_jsonl(output_dir / "selections.jsonl") if row["method_label"] == "random_seeded"]
+    candidate_rank = {
+        (row["query_id"], row["doc_id"]): row["rank"]
+        for row in read_jsonl(output_dir / "candidates.jsonl")
+        if row["top_n"] == 5
+    }
+    selected_ranks_by_query = {
+        row["query_id"]: tuple(candidate_rank[(row["query_id"], doc_id)] for doc_id in row["selected_doc_ids"])
+        for row in random_rows
+    }
+
+    assert len(set(selected_ranks_by_query.values())) > 1
 
 
 def test_select_evaluate_consumes_saved_candidate_file(tmp_path):
