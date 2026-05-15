@@ -142,7 +142,6 @@ def select_evaluate(
     dataset = load_dataset(data_dir)
     candidates_by_top_n = load_candidate_file(candidates_path, dataset)
     candidate_sizes = tuple(sorted(candidates_by_top_n))
-    max_top_n = max(candidate_sizes)
     return _run_with_candidates(
         dataset=dataset,
         candidates_by_top_n=candidates_by_top_n,
@@ -156,7 +155,7 @@ def select_evaluate(
             combined_lambdas=combined_lambdas,
             mmr_lambda=mmr_lambda,
             seed=seed,
-            optimal_max_items=optimal_max_items if optimal_max_items is not None else max_top_n,
+            optimal_max_items=optimal_max_items if optimal_max_items is not None else ExperimentConfig.optimal_max_items,
             overwrite=overwrite,
         ),
     )
@@ -294,15 +293,11 @@ def _candidate_text(row: dict, field: str, row_number: int) -> str:
 
 def _candidate_positive_int(row: dict, field: str, row_number: int) -> int:
     value = row.get(field)
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}")
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError) as exc:
-        raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}") from exc
-    if parsed <= 0:
+    if value <= 0:
         raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}")
-    return parsed
+    return value
 
 
 def _canonical_token_cost(text: str) -> int:
