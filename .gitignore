@@ -1,0 +1,9 @@
+.humanize/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.venv/
+proj/.venv/
+proj/out/
+proj/report/figures/
+proj/report/*.pdf
