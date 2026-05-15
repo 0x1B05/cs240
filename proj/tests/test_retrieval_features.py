@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from proj.src.data import DataValidationError, Dataset, Document, Query, load_dataset
+from proj.src.data import Candidate, DataValidationError, Dataset, Document, Query, load_dataset
 from proj.src.features import build_features
 from proj.src.retrieval import retrieve_top_n
 
@@ -53,3 +53,16 @@ def test_build_features_shapes_are_consistent():
     assert len(features.relevance) == 4
     assert len(features.similarity) == 4
     assert features.similarity[0][1] == features.similarity[1][0]
+
+
+def test_build_features_similarity_is_independent_of_query_text():
+    candidates = [
+        Candidate(query_id="q", doc_id="d1", rank=1, score=1.0, text="alpha alpha beta", token_cost=3),
+        Candidate(query_id="q", doc_id="d2", rank=2, score=0.9, text="alpha beta beta", token_cost=3),
+        Candidate(query_id="q", doc_id="d3", rank=3, score=0.1, text="gamma delta", token_cost=2),
+    ]
+
+    first = build_features("alpha beta", candidates)
+    second = build_features("gamma gamma gamma", candidates)
+
+    assert first.similarity == second.similarity

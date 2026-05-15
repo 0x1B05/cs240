@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import math
 
 from .data import Candidate, DataValidationError
-from .textmath import cosine, tfidf_vectors
+from .textmath import cosine, tfidf_transform
 
 
 @dataclass(frozen=True)
@@ -23,10 +23,9 @@ def build_features(query_text: str, candidates: list[Candidate]) -> FeatureSet:
     if len(query_ids) != 1:
         raise DataValidationError("candidate list contains multiple query ids")
 
-    texts = [query_text] + [candidate.text for candidate in candidates]
-    vectors = tfidf_vectors(texts)
-    query_vector = vectors[0]
-    doc_vectors = vectors[1:]
+    doc_texts = [candidate.text for candidate in candidates]
+    query_vector = tfidf_transform([query_text], reference_texts=doc_texts)[0]
+    doc_vectors = tfidf_transform(doc_texts, reference_texts=doc_texts)
 
     relevance = tuple(max(0.0, cosine(query_vector, vector)) for vector in doc_vectors)
     similarity_rows: list[tuple[float, ...]] = []
