@@ -1,0 +1,3 @@
+{"query_id":"q1","query":"Which graph algorithm finds shortest paths and which data structure supports priority updates?","answer":"Dijkstra uses a priority queue.","evidence_ids":["d1","d2"]}
+{"query_id":"q2","query":"What optimization problem models choosing documents under a token budget?","answer":"It can be modeled as budgeted maximum coverage or knapsack-constrained submodular maximization.","evidence_ids":["d4","d5"]}
+{"query_id":"q3","query":"Which reranking method balances relevance and novelty?","answer":"MMR balances relevance and novelty.","evidence_ids":["d6"]}
