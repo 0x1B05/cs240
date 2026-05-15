@@ -41,10 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     select = subparsers.add_parser("select-evaluate", help="Run selection and evaluation for one budget/top-N configuration.")
     select.add_argument("--data-dir", type=Path, required=True)
+    select.add_argument("--candidates-path", type=Path, required=True)
     select.add_argument("--output-dir", type=Path, required=True)
     select.add_argument("--budget", type=int, default=DEFAULT_BUDGET)
-    select.add_argument("--top-n", type=int, default=DEFAULT_TOP_N)
     select.add_argument("--seed", type=int, default=13)
+    select.add_argument("--optimal-max-items", type=int)
     select.add_argument("--overwrite", action="store_true")
 
     experiment = subparsers.add_parser("run-experiment", help="Run the full budget/candidate/method experiment grid.")
@@ -101,7 +102,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {len(rows)} candidates to {args.output_path}")
             return 0
         if args.command == "select-evaluate":
-            select_evaluate(args.data_dir, args.output_dir, args.budget, args.top_n, args.seed, overwrite=args.overwrite)
+            select_evaluate(
+                args.data_dir,
+                args.candidates_path,
+                args.output_dir,
+                args.budget,
+                args.seed,
+                overwrite=args.overwrite,
+                optimal_max_items=args.optimal_max_items,
+            )
             print(f"wrote selection/evaluation outputs to {args.output_dir}")
             return 0
         if args.command == "run-experiment":

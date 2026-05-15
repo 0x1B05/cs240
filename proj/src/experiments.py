@@ -4,6 +4,7 @@ import csv
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import random
 from statistics import mean, pstdev
 
 from .data import (
@@ -13,6 +14,7 @@ from .data import (
     Selection,
     candidates_to_rows,
     load_dataset,
+    read_jsonl,
     write_jsonl,
 )
 from .features import FeatureSet, build_features
@@ -110,6 +112,192 @@ def parse_name_grid(value: str, *, allowed: tuple[str, ...], label: str) -> tupl
 
 
 def run_experiment(config: ExperimentConfig) -> dict:
+    dataset = _sample_dataset(load_dataset(Path(config.data_dir)), config.sample_size, config.sample_seed)
+    candidates_by_top_n = {top_n: retrieve_top_n(dataset, top_n) for top_n in config.candidate_sizes}
+    return _run_with_candidates(dataset, candidates_by_top_n, config)
+
+
+def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
+    dataset = load_dataset(data_dir)
+    rows = [{**row, "top_n": top_n} for row in candidates_to_rows(retrieve_top_n(dataset, top_n))]
+    write_jsonl(output_path, rows)
+    return rows
+
+
+def select_evaluate(
+    data_dir: Path,
+    candidates_path: Path,
+    output_dir: Path,
+    budget: int,
+    seed: int,
+    overwrite: bool = False,
+    selectors: tuple[str, ...] = DEFAULT_SELECTORS,
+    objectives: tuple[str, ...] = ("combined",),
+    combined_lambdas: tuple[float, ...] = (1.0,),
+    mmr_lambda: float = 0.7,
+    optimal_max_items: int | None = None,
+) -> dict:
+    dataset = load_dataset(data_dir)
+    candidates_by_top_n = load_candidate_file(candidates_path, dataset)
+    candidate_sizes = tuple(sorted(candidates_by_top_n))
+    max_top_n = max(candidate_sizes)
+    return _run_with_candidates(
+        dataset=dataset,
+        candidates_by_top_n=candidates_by_top_n,
+        config=ExperimentConfig(
+            data_dir=str(data_dir),
+            output_dir=str(output_dir),
+            budgets=(budget,),
+            candidate_sizes=candidate_sizes,
+            selectors=selectors,
+            objectives=objectives,
+            combined_lambdas=combined_lambdas,
+            mmr_lambda=mmr_lambda,
+            seed=seed,
+            optimal_max_items=optimal_max_items if optimal_max_items is not None else max_top_n,
+            overwrite=overwrite,
+        ),
+    )
+
+
+def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, top_n: int = DEFAULT_TOP_N, seed: int = 13) -> dict:
+    summary = run_experiment(
+        ExperimentConfig(
+            data_dir=str(data_dir),
+            output_dir=str(output_dir),
+            dataset_name="fixture",
+            split="smoke",
+            budgets=(budget,),
+            candidate_sizes=(top_n,),
+            selectors=DEFAULT_SELECTORS,
+            objectives=DEFAULT_OBJECTIVES,
+            combined_lambdas=(1.0,),
+            seed=seed,
+            optimal_max_items=top_n,
+            overwrite=True,
+        )
+    )
+    aggregate_rows = _read_aggregate_csv(output_dir / "aggregate_metrics.csv")
+    aggregate = {}
+    for row in aggregate_rows:
+        aggregate[row["method_label"]] = {
+            key: _maybe_float(value)
+            for key, value in row.items()
+            if key.endswith("_mean") or key.endswith("_std") or key == "queries"
+        }
+    metrics = {
+        "config": {"data_dir": str(data_dir), "budget": budget, "top_n": top_n, "seed": seed},
+        "runtime_seconds": 0.0,
+        "aggregate": aggregate,
+    }
+    (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output_dir / "summary.md").write_text(_summary_markdown(metrics), encoding="utf-8")
+    return metrics
+
+
+def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, list[Candidate]]]:
+    rows = read_jsonl(path)
+    required = {"query_id", "doc_id", "rank", "score", "text", "token_cost", "top_n"}
+    query_ids = {query.query_id for query in dataset.queries}
+    doc_ids = {doc.doc_id for doc in dataset.corpus}
+    grouped: dict[int, dict[str, list[Candidate]]] = {}
+
+    for row_number, row in enumerate(rows, 1):
+        missing = required - set(row)
+        if missing:
+            raise DataValidationError(f"missing required candidate columns at row {row_number}: {sorted(missing)}")
+        query_id = _candidate_text(row, "query_id", row_number)
+        doc_id = _candidate_text(row, "doc_id", row_number)
+        if query_id not in query_ids:
+            raise DataValidationError(f"candidate row references unknown query_id: {query_id}")
+        if doc_id not in doc_ids:
+            raise DataValidationError(f"candidate row references unknown doc_id: {doc_id}")
+        rank = _candidate_positive_int(row, "rank", row_number)
+        top_n = _candidate_positive_int(row, "top_n", row_number)
+        token_cost = _candidate_positive_int(row, "token_cost", row_number)
+        if rank > top_n:
+            raise DataValidationError(f"candidate rank exceeds top_n at row {row_number}")
+        try:
+            score = float(row["score"])
+        except (TypeError, ValueError) as exc:
+            raise DataValidationError(f"candidate score must be numeric at row {row_number}") from exc
+        text = _candidate_text(row, "text", row_number)
+        candidate = Candidate(query_id=query_id, doc_id=doc_id, rank=rank, score=score, text=text, token_cost=token_cost)
+        grouped.setdefault(top_n, {}).setdefault(query_id, []).append(candidate)
+
+    for top_n, by_query in grouped.items():
+        missing_queries = query_ids - set(by_query)
+        if missing_queries:
+            raise DataValidationError(f"candidate file missing queries for top_n={top_n}: {sorted(missing_queries)}")
+        for query_id, candidates in by_query.items():
+            candidates.sort(key=lambda item: (item.rank, item.doc_id))
+            ranks = [candidate.rank for candidate in candidates]
+            if ranks != list(range(1, len(candidates) + 1)):
+                raise DataValidationError(f"candidate ranks must be contiguous for query {query_id}, top_n={top_n}")
+            if len(candidates) > top_n:
+                raise DataValidationError(f"candidate file has more than top_n rows for query {query_id}, top_n={top_n}")
+            seen_docs = [candidate.doc_id for candidate in candidates]
+            if len(seen_docs) != len(set(seen_docs)):
+                raise DataValidationError(f"candidate file contains duplicate doc ids for query {query_id}, top_n={top_n}")
+
+    return {top_n: {query_id: list(candidates) for query_id, candidates in sorted(by_query.items())} for top_n, by_query in sorted(grouped.items())}
+
+
+def aggregate_metric_rows(metric_rows: list[dict]) -> list[dict]:
+    if not metric_rows:
+        raise DataValidationError("no metric rows to aggregate")
+    for row in metric_rows:
+        missing = (set(AGGREGATE_GROUP_KEYS) | set(METRIC_COLUMNS)) - set(row)
+        if missing:
+            raise DataValidationError(f"metric row missing required fields: {sorted(missing)}")
+    grouped: dict[tuple, list[dict]] = {}
+    for row in metric_rows:
+        key = tuple(row[field] for field in AGGREGATE_GROUP_KEYS)
+        grouped.setdefault(key, []).append(row)
+    rows: list[dict] = []
+    for key in sorted(grouped):
+        items = grouped[key]
+        aggregate = {field: value for field, value in zip(AGGREGATE_GROUP_KEYS, key, strict=True)}
+        aggregate["queries"] = len(items)
+        for column in METRIC_COLUMNS:
+            values = [float(item[column]) for item in items]
+            aggregate[f"{column}_mean"] = mean(values)
+            aggregate[f"{column}_std"] = pstdev(values) if len(values) > 1 else 0.0
+        rows.append(aggregate)
+    return rows
+
+
+def _sample_dataset(dataset: Dataset, sample_size: int | None, sample_seed: int) -> Dataset:
+    if sample_size is None or sample_size >= len(dataset.queries):
+        return dataset
+    if sample_size <= 0:
+        raise DataValidationError("sample_size must be positive")
+    queries = sorted(dataset.queries, key=lambda item: item.query_id)
+    sampled = sorted(random.Random(sample_seed).sample(queries, sample_size), key=lambda item: item.query_id)
+    return Dataset(queries=tuple(sampled), corpus=dataset.corpus)
+
+
+def _candidate_text(row: dict, field: str, row_number: int) -> str:
+    value = row.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise DataValidationError(f"candidate {field} must be a nonempty string at row {row_number}")
+    return value.strip()
+
+
+def _candidate_positive_int(row: dict, field: str, row_number: int) -> int:
+    value = row.get(field)
+    if isinstance(value, bool):
+        raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}") from exc
+    if parsed <= 0:
+        raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}")
+    return parsed
+
+
+def _run_with_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[str, list[Candidate]]], config: ExperimentConfig) -> dict:
     _validate_config(config)
     output_dir = Path(config.output_dir)
     if output_dir.exists() and any(output_dir.iterdir()) and not config.overwrite:
@@ -118,12 +306,12 @@ def run_experiment(config: ExperimentConfig) -> dict:
         _clear_output_dir(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset = load_dataset(Path(config.data_dir))
     query_by_id = {query.query_id: query for query in dataset.queries}
-    candidates_by_top_n = {top_n: retrieve_top_n(dataset, top_n) for top_n in config.candidate_sizes}
     features_by_key: dict[tuple[int, str], FeatureSet] = {}
     for top_n, candidates_by_query in candidates_by_top_n.items():
         for query in dataset.queries:
+            if query.query_id not in candidates_by_query:
+                raise DataValidationError(f"missing candidates for query {query.query_id}, top_n={top_n}")
             features_by_key[(top_n, query.query_id)] = build_features(query.query, candidates_by_query[query.query_id])
 
     candidate_rows = _candidate_rows(candidates_by_top_n)
@@ -132,6 +320,8 @@ def run_experiment(config: ExperimentConfig) -> dict:
     optimal_rows: list[dict] = []
 
     for top_n in sorted(config.candidate_sizes):
+        if top_n not in candidates_by_top_n:
+            raise DataValidationError(f"missing candidate set for top_n={top_n}")
         for budget in sorted(config.budgets):
             for query in sorted(dataset.queries, key=lambda item: item.query_id):
                 features = features_by_key[(top_n, query.query_id)]
@@ -208,89 +398,6 @@ def run_experiment(config: ExperimentConfig) -> dict:
         "optimal_rows": len(optimal_rows),
         "output_dir": str(output_dir),
     }
-
-
-def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
-    dataset = load_dataset(data_dir)
-    rows = [{**row, "top_n": top_n} for row in candidates_to_rows(retrieve_top_n(dataset, top_n))]
-    write_jsonl(output_path, rows)
-    return rows
-
-
-def select_evaluate(data_dir: Path, output_dir: Path, budget: int, top_n: int, seed: int, overwrite: bool = False) -> dict:
-    return run_experiment(
-        ExperimentConfig(
-            data_dir=str(data_dir),
-            output_dir=str(output_dir),
-            budgets=(budget,),
-            candidate_sizes=(top_n,),
-            selectors=DEFAULT_SELECTORS,
-            objectives=("combined",),
-            combined_lambdas=(1.0,),
-            seed=seed,
-            optimal_max_items=top_n,
-            overwrite=overwrite,
-        )
-    )
-
-
-def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, top_n: int = DEFAULT_TOP_N, seed: int = 13) -> dict:
-    summary = run_experiment(
-        ExperimentConfig(
-            data_dir=str(data_dir),
-            output_dir=str(output_dir),
-            dataset_name="fixture",
-            split="smoke",
-            budgets=(budget,),
-            candidate_sizes=(top_n,),
-            selectors=DEFAULT_SELECTORS,
-            objectives=DEFAULT_OBJECTIVES,
-            combined_lambdas=(1.0,),
-            seed=seed,
-            optimal_max_items=top_n,
-            overwrite=True,
-        )
-    )
-    aggregate_rows = _read_aggregate_csv(output_dir / "aggregate_metrics.csv")
-    aggregate = {}
-    for row in aggregate_rows:
-        aggregate[row["method_label"]] = {
-            key: _maybe_float(value)
-            for key, value in row.items()
-            if key.endswith("_mean") or key.endswith("_std") or key == "queries"
-        }
-    metrics = {
-        "config": {"data_dir": str(data_dir), "budget": budget, "top_n": top_n, "seed": seed},
-        "runtime_seconds": 0.0,
-        "aggregate": aggregate,
-    }
-    (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "summary.md").write_text(_summary_markdown(metrics), encoding="utf-8")
-    return metrics
-
-
-def aggregate_metric_rows(metric_rows: list[dict]) -> list[dict]:
-    if not metric_rows:
-        raise DataValidationError("no metric rows to aggregate")
-    for row in metric_rows:
-        missing = (set(AGGREGATE_GROUP_KEYS) | set(METRIC_COLUMNS)) - set(row)
-        if missing:
-            raise DataValidationError(f"metric row missing required fields: {sorted(missing)}")
-    grouped: dict[tuple, list[dict]] = {}
-    for row in metric_rows:
-        key = tuple(row[field] for field in AGGREGATE_GROUP_KEYS)
-        grouped.setdefault(key, []).append(row)
-    rows: list[dict] = []
-    for key in sorted(grouped):
-        items = grouped[key]
-        aggregate = {field: value for field, value in zip(AGGREGATE_GROUP_KEYS, key, strict=True)}
-        aggregate["queries"] = len(items)
-        for column in METRIC_COLUMNS:
-            values = [float(item[column]) for item in items]
-            aggregate[f"{column}_mean"] = mean(values)
-            aggregate[f"{column}_std"] = pstdev(values) if len(values) > 1 else 0.0
-        rows.append(aggregate)
-    return rows
 
 
 def _validate_config(config: ExperimentConfig) -> None:

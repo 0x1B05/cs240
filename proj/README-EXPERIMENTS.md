@@ -18,7 +18,7 @@ The core implementation uses Python standard-library code plus `pytest` for test
 uv run pytest proj/tests
 ```
 
-The test suite covers fixture loading, MultiHop-style raw preparation, retrieval candidates, feature construction, objectives, selectors, metrics, the main experiment runner, artifact validation, overwrite refusal, invalid grids, optimal checks, and deterministic re-runs.
+The test suite covers fixture loading, MultiHop-style raw preparation, retrieval candidates, saved candidate-file validation, feature construction, objectives, selectors, metrics, the main experiment runner, artifact validation, overwrite refusal, invalid grids, optimal checks, sampled runs, and deterministic re-runs.
 
 ## Local Data Preparation
 
@@ -95,7 +95,7 @@ uv run python -m proj.src.cli run-experiment \
   --overwrite
 ```
 
-For a sampled MultiHop-RAG slice, point `--data-dir` at the processed cache from the split-format command above and use the planned report grid:
+For a sampled MultiHop-RAG slice, point `--data-dir` at a processed cache and use the planned report grid. `run-experiment --sample-size N --sample-seed S` applies a second deterministic query-level subset inside the processed cache, and `sample_manifest.jsonl` records the exact query IDs used by the run:
 
 ```bash
 uv run python -m proj.src.cli run-experiment \
@@ -127,6 +127,33 @@ Stable run outputs:
 - `aggregate_metrics.csv` and `aggregate_metrics.md`: grouped mean/std metrics by method, budget, and candidate size
 - `optimal_checks.csv`: greedy-vs-optimal checks for candidate sets under the exhaustive-search threshold
 - `summary.md` and `run.log`
+
+## Staged Candidate Workflow
+
+The full runner regenerates candidates internally for convenience. The staged commands expose the candidate-file boundary required for validating intermediate retrieval outputs.
+
+Generate and save a candidate file:
+
+```bash
+uv run python -m proj.src.cli generate-candidates \
+  --data-dir proj/data/fixtures \
+  --output-path proj/out/candidates/fixture_top3.jsonl \
+  --top-n 3
+```
+
+Select and evaluate from that saved file:
+
+```bash
+uv run python -m proj.src.cli select-evaluate \
+  --data-dir proj/data/fixtures \
+  --candidates-path proj/out/candidates/fixture_top3.jsonl \
+  --output-dir proj/out/staged/fixture_top3_b18 \
+  --budget 18 \
+  --seed 13 \
+  --overwrite
+```
+
+The downstream stage validates the saved candidate schema before selection starts. Required columns are `query_id`, `doc_id`, `rank`, `score`, `text`, `token_cost`, and `top_n`; rows must reference known query/document IDs, ranks must be contiguous per query, and every query in the processed dataset must have candidates.
 
 ## Report Artifacts
 

@@ -96,3 +96,43 @@ def test_cli_generate_candidates_writes_top_n_column(tmp_path, capsys):
     assert "wrote" in captured.out
     first = json.loads(output_path.read_text(encoding="utf-8").splitlines()[0])
     assert first["top_n"] == 3
+
+
+def test_cli_select_evaluate_consumes_candidate_file(tmp_path, capsys):
+    candidates_path = tmp_path / "candidates.jsonl"
+    output_dir = tmp_path / "selected"
+    assert (
+        main(
+            [
+                "generate-candidates",
+                "--data-dir",
+                "proj/data/fixtures",
+                "--output-path",
+                str(candidates_path),
+                "--top-n",
+                "3",
+            ]
+        )
+        == 0
+    )
+
+    exit_code = main(
+        [
+            "select-evaluate",
+            "--data-dir",
+            "proj/data/fixtures",
+            "--candidates-path",
+            str(candidates_path),
+            "--output-dir",
+            str(output_dir),
+            "--budget",
+            "18",
+            "--seed",
+            "13",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "selection/evaluation" in captured.out
+    assert (output_dir / "per_query_metrics.jsonl").exists()
