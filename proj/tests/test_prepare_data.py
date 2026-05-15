@@ -194,6 +194,37 @@ def test_prepare_split_multihop_cache_rejects_evidence_text_missing_from_corpus(
         )
 
 
+def test_prepare_split_rejects_ambiguous_text_only_evidence(tmp_path):
+    raw_queries = tmp_path / "queries.jsonl"
+    raw_corpus = tmp_path / "corpus.jsonl"
+    duplicate_text = "duplicate supporting passage"
+    raw_queries.write_text(
+        json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_list": [duplicate_text]}) + "\n",
+        encoding="utf-8",
+    )
+    raw_corpus.write_text(
+        "\n".join(
+            [
+                json.dumps({"id": "d1", "passage": duplicate_text}),
+                json.dumps({"id": "d2", "passage": duplicate_text}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="ambiguous evidence text"):
+        prepare_multihop_cache(
+            raw_queries=raw_queries,
+            raw_corpus=raw_corpus,
+            output_dir=tmp_path / "processed",
+            schema="split",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_prepare_embedded_sample_keeps_candidate_pool_for_sampled_queries(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     raw_path.write_text(
