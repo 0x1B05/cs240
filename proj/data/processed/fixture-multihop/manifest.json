@@ -1,0 +1,14 @@
+{
+  "corpus": 8,
+  "queries": 3,
+  "query_ids": [
+    "raw-q1",
+    "raw-q2",
+    "raw-q3"
+  ],
+  "raw_corpus": null,
+  "raw_queries": "proj/data/fixtures/multihop_raw.jsonl",
+  "sample_size": null,
+  "schema": "embedded",
+  "seed": 13
+}

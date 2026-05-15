@@ -1,74 +1,267 @@
 from __future__ import annotations
 
+import csv
+from dataclasses import dataclass
 import json
 from pathlib import Path
-import time
+from statistics import mean, pstdev
 
-from .data import Dataset, Selection, candidates_to_rows, load_dataset, selections_to_rows, write_jsonl
-from .features import build_features
-from .metrics import aggregate_metrics, evaluate_selection
-from .objectives import combined_objective, coverage_objective, diversity_objective
+from .data import (
+    Candidate,
+    DataValidationError,
+    Dataset,
+    Selection,
+    candidates_to_rows,
+    load_dataset,
+    write_jsonl,
+)
+from .features import FeatureSet, build_features
+from .metrics import evaluate_selection
+from .objectives import Objective, combined_objective, coverage_objective, diversity_objective
 from .retrieval import retrieve_top_n
-from .selectors import budgeted_greedy, mmr, relevance_ratio, seeded_random, top_ranked
+from .selectors import budgeted_greedy, exhaustive_optimal, mmr, relevance_ratio, seeded_random, top_ranked
 
 
 DEFAULT_BUDGET = 18
 DEFAULT_TOP_N = 5
+DEFAULT_SELECTORS = ("top_ranked", "relevance_ratio", "random_seeded", "mmr", "budgeted_greedy")
+DEFAULT_OBJECTIVES = ("coverage", "diversity", "combined")
+BASELINE_OBJECTIVE = "none"
+BASELINE_LAMBDA = 0.0
+AGGREGATE_GROUP_KEYS = ("method_label", "selector", "objective", "lambda_value", "budget", "top_n")
+METRIC_COLUMNS = (
+    "evidence_recall",
+    "evidence_precision",
+    "evidence_f1",
+    "redundancy",
+    "budget_utilization",
+    "selected_count",
+    "runtime_units",
+)
+AGGREGATE_COLUMNS = (
+    *AGGREGATE_GROUP_KEYS,
+    "queries",
+    "evidence_recall_mean",
+    "evidence_recall_std",
+    "evidence_precision_mean",
+    "evidence_precision_std",
+    "evidence_f1_mean",
+    "evidence_f1_std",
+    "redundancy_mean",
+    "redundancy_std",
+    "budget_utilization_mean",
+    "budget_utilization_std",
+    "selected_count_mean",
+    "selected_count_std",
+    "runtime_units_mean",
+    "runtime_units_std",
+)
+
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    data_dir: str
+    output_dir: str
+    dataset_name: str = "dataset"
+    split: str = "test"
+    budgets: tuple[int, ...] = (80, 160, 320)
+    candidate_sizes: tuple[int, ...] = (10, 20, 40)
+    selectors: tuple[str, ...] = DEFAULT_SELECTORS
+    objectives: tuple[str, ...] = DEFAULT_OBJECTIVES
+    combined_lambdas: tuple[float, ...] = (1.0,)
+    mmr_lambda: float = 0.7
+    seed: int = 13
+    sample_size: int | None = None
+    sample_seed: int = 13
+    optimal_max_items: int = 16
+    overwrite: bool = False
+
+
+def parse_grid(value: str, *, item_type, label: str) -> tuple:
+    if not value or not value.strip():
+        raise DataValidationError(f"{label} grid must not be empty")
+    items = []
+    for raw in value.split(","):
+        stripped = raw.strip()
+        if not stripped:
+            raise DataValidationError(f"{label} grid contains an empty value")
+        try:
+            item = item_type(stripped)
+        except ValueError as exc:
+            raise DataValidationError(f"{label} grid contains invalid value: {stripped}") from exc
+        if item <= 0:
+            raise DataValidationError(f"{label} grid values must be positive")
+        items.append(item)
+    if len(items) != len(set(items)):
+        raise DataValidationError(f"{label} grid contains duplicate values")
+    return tuple(items)
+
+
+def parse_name_grid(value: str, *, allowed: tuple[str, ...], label: str) -> tuple[str, ...]:
+    names = tuple(item.strip() for item in value.split(",") if item.strip())
+    if not names:
+        raise DataValidationError(f"{label} must not be empty")
+    unknown = sorted(set(names) - set(allowed))
+    if unknown:
+        raise DataValidationError(f"unknown {label}: {', '.join(unknown)}")
+    if len(names) != len(set(names)):
+        raise DataValidationError(f"{label} contains duplicate values")
+    return names
+
+
+def run_experiment(config: ExperimentConfig) -> dict:
+    _validate_config(config)
+    output_dir = Path(config.output_dir)
+    if output_dir.exists() and any(output_dir.iterdir()) and not config.overwrite:
+        raise DataValidationError(f"output directory exists; pass --overwrite to replace it: {output_dir}")
+    if output_dir.exists() and config.overwrite:
+        _clear_output_dir(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    dataset = load_dataset(Path(config.data_dir))
+    query_by_id = {query.query_id: query for query in dataset.queries}
+    candidates_by_top_n = {top_n: retrieve_top_n(dataset, top_n) for top_n in config.candidate_sizes}
+    features_by_key: dict[tuple[int, str], FeatureSet] = {}
+    for top_n, candidates_by_query in candidates_by_top_n.items():
+        for query in dataset.queries:
+            features_by_key[(top_n, query.query_id)] = build_features(query.query, candidates_by_query[query.query_id])
+
+    candidate_rows = _candidate_rows(candidates_by_top_n)
+    selection_rows: list[dict] = []
+    metric_rows: list[dict] = []
+    optimal_rows: list[dict] = []
+
+    for top_n in sorted(config.candidate_sizes):
+        for budget in sorted(config.budgets):
+            for query in sorted(dataset.queries, key=lambda item: item.query_id):
+                features = features_by_key[(top_n, query.query_id)]
+                for selector, objective_name, lambda_value, method_label in _method_specs(config):
+                    result, runtime_units = _run_selector(selector, objective_name, lambda_value, features, budget, config)
+                    selected_doc_ids = tuple(features.doc_ids[index] for index in result.indices)
+                    selection = Selection(
+                        query_id=query.query_id,
+                        method=method_label,
+                        selected_doc_ids=selected_doc_ids,
+                        total_cost=result.total_cost,
+                        objective_value=result.objective_value,
+                    )
+                    selection_rows.append(
+                        {
+                            "budget": budget,
+                            "lambda_value": lambda_value,
+                            "method_label": method_label,
+                            "objective": objective_name,
+                            "objective_value": result.objective_value,
+                            "query_id": query.query_id,
+                            "runtime_units": runtime_units,
+                            "seed": config.seed,
+                            "selected_doc_ids": list(selected_doc_ids),
+                            "selector": selector,
+                            "status": "selected" if selected_doc_ids else "empty",
+                            "top_n": top_n,
+                            "total_cost": result.total_cost,
+                        }
+                    )
+                    metrics = evaluate_selection(query_by_id[query.query_id], features, selection, budget, runtime_units=runtime_units)
+                    metric_rows.append(
+                        {
+                            "budget": budget,
+                            "budget_utilization": metrics.budget_utilization,
+                            "evidence_f1": metrics.evidence_f1,
+                            "evidence_precision": metrics.evidence_precision,
+                            "evidence_recall": metrics.evidence_recall,
+                            "lambda_value": lambda_value,
+                            "method_label": method_label,
+                            "objective": objective_name,
+                            "query_id": query.query_id,
+                            "redundancy": metrics.redundancy,
+                            "runtime_units": metrics.runtime_units,
+                            "selected_count": metrics.selected_count,
+                            "selector": selector,
+                            "top_n": top_n,
+                        }
+                    )
+                    optimal_rows.append(_optimal_check_row(features, selector, objective_name, lambda_value, result, budget, top_n, query.query_id, config))
+
+    selection_rows = _sort_long_rows(selection_rows)
+    metric_rows = _sort_long_rows(metric_rows)
+    optimal_rows = _sort_optimal_rows(optimal_rows)
+    aggregate_rows = aggregate_metric_rows(metric_rows)
+
+    _write_config(output_dir / "config.json", config, dataset)
+    write_jsonl(output_dir / "sample_manifest.jsonl", [{"query_id": query.query_id} for query in sorted(dataset.queries, key=lambda item: item.query_id)])
+    write_jsonl(output_dir / "candidates.jsonl", candidate_rows)
+    write_jsonl(output_dir / "selections.jsonl", selection_rows)
+    write_jsonl(output_dir / "per_query_metrics.jsonl", metric_rows)
+    _write_csv(output_dir / "aggregate_metrics.csv", aggregate_rows, AGGREGATE_COLUMNS)
+    (output_dir / "aggregate_metrics.md").write_text(_aggregate_markdown(aggregate_rows), encoding="utf-8")
+    _write_csv(output_dir / "optimal_checks.csv", optimal_rows, _optimal_columns())
+    (output_dir / "summary.md").write_text(_run_summary_markdown(config, dataset, aggregate_rows, optimal_rows), encoding="utf-8")
+    (output_dir / "run.log").write_text(_run_log(config, dataset, aggregate_rows), encoding="utf-8")
+
+    return {
+        "queries": len(dataset.queries),
+        "candidate_rows": len(candidate_rows),
+        "selection_rows": len(selection_rows),
+        "metric_rows": len(metric_rows),
+        "aggregate_rows": len(aggregate_rows),
+        "optimal_rows": len(optimal_rows),
+        "output_dir": str(output_dir),
+    }
+
+
+def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
+    dataset = load_dataset(data_dir)
+    rows = [{**row, "top_n": top_n} for row in candidates_to_rows(retrieve_top_n(dataset, top_n))]
+    write_jsonl(output_path, rows)
+    return rows
+
+
+def select_evaluate(data_dir: Path, output_dir: Path, budget: int, top_n: int, seed: int, overwrite: bool = False) -> dict:
+    return run_experiment(
+        ExperimentConfig(
+            data_dir=str(data_dir),
+            output_dir=str(output_dir),
+            budgets=(budget,),
+            candidate_sizes=(top_n,),
+            selectors=DEFAULT_SELECTORS,
+            objectives=("combined",),
+            combined_lambdas=(1.0,),
+            seed=seed,
+            optimal_max_items=top_n,
+            overwrite=overwrite,
+        )
+    )
 
 
 def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, top_n: int = DEFAULT_TOP_N, seed: int = 13) -> dict:
-    dataset = load_dataset(data_dir)
-    started = time.perf_counter()
-    candidates_by_query = retrieve_top_n(dataset, top_n)
-
-    selections: list[Selection] = []
-    metric_rows = []
-    for query in dataset.queries:
-        candidates = candidates_by_query[query.query_id]
-        features = build_features(query.query, candidates)
-        index_by_doc_id = {doc_id: index for index, doc_id in enumerate(features.doc_ids)}
-
-        method_results = {
-            "top_ranked": top_ranked(features, budget),
-            "relevance_ratio": relevance_ratio(features, budget),
-            "random_seeded": seeded_random(features, budget, seed=seed),
-            "mmr": mmr(features, budget),
-            "submodular_coverage": budgeted_greedy(features, coverage_objective(features), budget),
-            "submodular_diversity": budgeted_greedy(features, diversity_objective(features), budget),
-            "submodular_combined": budgeted_greedy(features, combined_objective(features), budget),
+    summary = run_experiment(
+        ExperimentConfig(
+            data_dir=str(data_dir),
+            output_dir=str(output_dir),
+            dataset_name="fixture",
+            split="smoke",
+            budgets=(budget,),
+            candidate_sizes=(top_n,),
+            selectors=DEFAULT_SELECTORS,
+            objectives=DEFAULT_OBJECTIVES,
+            combined_lambdas=(1.0,),
+            seed=seed,
+            optimal_max_items=top_n,
+            overwrite=True,
+        )
+    )
+    aggregate_rows = _read_aggregate_csv(output_dir / "aggregate_metrics.csv")
+    aggregate = {}
+    for row in aggregate_rows:
+        aggregate[row["method_label"]] = {
+            key: _maybe_float(value)
+            for key, value in row.items()
+            if key.endswith("_mean") or key.endswith("_std") or key == "queries"
         }
-
-        for method, result in method_results.items():
-            selected_doc_ids = tuple(features.doc_ids[index] for index in result.indices)
-            selection = Selection(
-                query_id=query.query_id,
-                method=method,
-                selected_doc_ids=selected_doc_ids,
-                total_cost=result.total_cost,
-                objective_value=result.objective_value,
-            )
-            # Validate selected ids before evaluating to catch stale mappings early.
-            for doc_id in selected_doc_ids:
-                if doc_id not in index_by_doc_id:
-                    raise AssertionError(f"selected document missing from features: {doc_id}")
-            selections.append(selection)
-            metric = evaluate_selection(query, features, selection, budget)
-            metric_rows.append(metric)
-
-    elapsed = time.perf_counter() - started
-    aggregate = aggregate_metrics(metric_rows)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    write_jsonl(output_dir / "candidates.jsonl", candidates_to_rows(candidates_by_query))
-    write_jsonl(output_dir / "selections.jsonl", selections_to_rows(selections))
-    write_jsonl(output_dir / "per_query_metrics.jsonl", [_metric_to_dict(item) for item in metric_rows])
     metrics = {
-        "config": {
-            "data_dir": str(data_dir),
-            "budget": budget,
-            "top_n": top_n,
-            "seed": seed,
-        },
-        "runtime_seconds": elapsed,
+        "config": {"data_dir": str(data_dir), "budget": budget, "top_n": top_n, "seed": seed},
+        "runtime_seconds": 0.0,
         "aggregate": aggregate,
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -76,17 +269,308 @@ def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, to
     return metrics
 
 
-def _metric_to_dict(metric) -> dict:
-    return {
-        "query_id": metric.query_id,
-        "method": metric.method,
-        "evidence_recall": metric.evidence_recall,
-        "evidence_precision": metric.evidence_precision,
-        "evidence_f1": metric.evidence_f1,
-        "redundancy": metric.redundancy,
-        "budget_utilization": metric.budget_utilization,
-        "selected_count": metric.selected_count,
+def aggregate_metric_rows(metric_rows: list[dict]) -> list[dict]:
+    if not metric_rows:
+        raise DataValidationError("no metric rows to aggregate")
+    for row in metric_rows:
+        missing = (set(AGGREGATE_GROUP_KEYS) | set(METRIC_COLUMNS)) - set(row)
+        if missing:
+            raise DataValidationError(f"metric row missing required fields: {sorted(missing)}")
+    grouped: dict[tuple, list[dict]] = {}
+    for row in metric_rows:
+        key = tuple(row[field] for field in AGGREGATE_GROUP_KEYS)
+        grouped.setdefault(key, []).append(row)
+    rows: list[dict] = []
+    for key in sorted(grouped):
+        items = grouped[key]
+        aggregate = {field: value for field, value in zip(AGGREGATE_GROUP_KEYS, key, strict=True)}
+        aggregate["queries"] = len(items)
+        for column in METRIC_COLUMNS:
+            values = [float(item[column]) for item in items]
+            aggregate[f"{column}_mean"] = mean(values)
+            aggregate[f"{column}_std"] = pstdev(values) if len(values) > 1 else 0.0
+        rows.append(aggregate)
+    return rows
+
+
+def _validate_config(config: ExperimentConfig) -> None:
+    if not config.budgets or any(item <= 0 for item in config.budgets) or len(config.budgets) != len(set(config.budgets)):
+        raise DataValidationError("budgets must be positive and unique")
+    if not config.candidate_sizes or any(item <= 0 for item in config.candidate_sizes) or len(config.candidate_sizes) != len(set(config.candidate_sizes)):
+        raise DataValidationError("candidate_sizes must be positive and unique")
+    unknown_selectors = sorted(set(config.selectors) - set(DEFAULT_SELECTORS))
+    if unknown_selectors:
+        raise DataValidationError(f"unknown selectors: {', '.join(unknown_selectors)}")
+    unknown_objectives = sorted(set(config.objectives) - set(DEFAULT_OBJECTIVES))
+    if unknown_objectives:
+        raise DataValidationError(f"unknown objectives: {', '.join(unknown_objectives)}")
+    if not config.selectors:
+        raise DataValidationError("selectors must not be empty")
+    if not config.objectives:
+        raise DataValidationError("objectives must not be empty")
+    if any(value <= 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
+        raise DataValidationError("combined_lambdas must be positive and unique")
+    if not 0.0 <= config.mmr_lambda <= 1.0:
+        raise DataValidationError("mmr_lambda must be in [0, 1]")
+    if config.optimal_max_items <= 0:
+        raise DataValidationError("optimal_max_items must be positive")
+
+
+def _clear_output_dir(output_dir: Path) -> None:
+    for path in output_dir.iterdir():
+        if path.is_dir():
+            _clear_output_dir(path)
+            path.rmdir()
+        else:
+            path.unlink()
+
+
+def _candidate_rows(candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) -> list[dict]:
+    rows: list[dict] = []
+    for top_n in sorted(candidates_by_top_n):
+        for query_id in sorted(candidates_by_top_n[top_n]):
+            for candidate in candidates_by_top_n[top_n][query_id]:
+                rows.append(
+                    {
+                        "doc_id": candidate.doc_id,
+                        "query_id": candidate.query_id,
+                        "rank": candidate.rank,
+                        "score": candidate.score,
+                        "text": candidate.text,
+                        "token_cost": candidate.token_cost,
+                        "top_n": top_n,
+                    }
+                )
+    return rows
+
+
+def _method_specs(config: ExperimentConfig):
+    for selector in config.selectors:
+        if selector == "budgeted_greedy":
+            for objective in config.objectives:
+                lambda_values = config.combined_lambdas if objective == "combined" else (BASELINE_LAMBDA,)
+                for lambda_value in lambda_values:
+                    yield selector, objective, lambda_value, f"submodular_{objective}"
+        else:
+            yield selector, BASELINE_OBJECTIVE, BASELINE_LAMBDA, selector
+
+
+def _run_selector(
+    selector: str,
+    objective_name: str,
+    lambda_value: float,
+    features: FeatureSet,
+    budget: int,
+    config: ExperimentConfig,
+):
+    if selector == "top_ranked":
+        result = top_ranked(features, budget)
+    elif selector == "relevance_ratio":
+        result = relevance_ratio(features, budget)
+    elif selector == "random_seeded":
+        result = seeded_random(features, budget, seed=config.seed)
+    elif selector == "mmr":
+        result = mmr(features, budget, lambda_value=config.mmr_lambda)
+    elif selector == "budgeted_greedy":
+        result = budgeted_greedy(features, _objective_for(features, objective_name, lambda_value), budget)
+    else:
+        raise DataValidationError(f"unknown selector: {selector}")
+    runtime_units = len(features.doc_ids) * max(1, len(result.indices))
+    return result, runtime_units
+
+
+def _objective_for(features: FeatureSet, objective_name: str, lambda_value: float) -> Objective:
+    if objective_name == "coverage":
+        return coverage_objective(features)
+    if objective_name == "diversity":
+        return diversity_objective(features)
+    if objective_name == "combined":
+        return combined_objective(features, lambda_value=lambda_value)
+    raise DataValidationError(f"unknown objective: {objective_name}")
+
+
+def _optimal_check_row(
+    features: FeatureSet,
+    selector: str,
+    objective_name: str,
+    lambda_value: float,
+    greedy_result,
+    budget: int,
+    top_n: int,
+    query_id: str,
+    config: ExperimentConfig,
+) -> dict:
+    base = {
+        "approx_ratio": "",
+        "budget": budget,
+        "greedy_cost": greedy_result.total_cost,
+        "greedy_value": greedy_result.objective_value if greedy_result.objective_value is not None else "",
+        "lambda_value": lambda_value,
+        "objective": objective_name,
+        "optimal_cost": "",
+        "optimal_value": "",
+        "query_id": query_id,
+        "reason": "",
+        "selector": selector,
+        "status": "skipped",
+        "top_n": top_n,
     }
+    if selector != "budgeted_greedy":
+        base["reason"] = "nondeterministic_or_baseline_selector"
+        return base
+    if len(features.doc_ids) > config.optimal_max_items:
+        base["reason"] = "too_many_items"
+        return base
+    objective = _objective_for(features, objective_name, lambda_value)
+    optimal = exhaustive_optimal(features, objective, budget, max_items=config.optimal_max_items)
+    ratio = "" if optimal.objective_value == 0 else (greedy_result.objective_value or 0.0) / optimal.objective_value
+    base.update(
+        {
+            "approx_ratio": ratio,
+            "optimal_cost": optimal.total_cost,
+            "optimal_value": optimal.objective_value,
+            "reason": "",
+            "status": "executed",
+        }
+    )
+    return base
+
+
+def _sort_long_rows(rows: list[dict]) -> list[dict]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["top_n"],
+            row["budget"],
+            row["method_label"],
+            row["objective"],
+            row["lambda_value"],
+            row["query_id"],
+        ),
+    )
+
+
+def _sort_optimal_rows(rows: list[dict]) -> list[dict]:
+    return sorted(rows, key=lambda row: (row["top_n"], row["budget"], row["selector"], row["objective"], row["lambda_value"], row["query_id"]))
+
+
+def _write_config(path: Path, config: ExperimentConfig, dataset: Dataset) -> None:
+    payload = {
+        "budgets": list(config.budgets),
+        "candidate_sizes": list(config.candidate_sizes),
+        "combined_lambdas": list(config.combined_lambdas),
+        "data_dir": config.data_dir,
+        "dataset_name": config.dataset_name,
+        "mmr_lambda": config.mmr_lambda,
+        "objectives": list(config.objectives),
+        "optimal_max_items": config.optimal_max_items,
+        "query_ids": [query.query_id for query in sorted(dataset.queries, key=lambda item: item.query_id)],
+        "sample_seed": config.sample_seed,
+        "sample_size": config.sample_size,
+        "seed": config.seed,
+        "selectors": list(config.selectors),
+        "split": config.split,
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_csv(path: Path, rows: list[dict], columns: tuple[str, ...]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(columns), extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+def _read_aggregate_csv(path: Path) -> list[dict]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _aggregate_markdown(rows: list[dict]) -> str:
+    lines = [
+        "# Aggregate Metrics",
+        "",
+        "| Method | Budget | Top N | Recall | F1 | Redundancy | Budget Use | Runtime Units |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        lines.append(
+            "| {method} | {budget} | {top_n} | {recall:.3f} | {f1:.3f} | {redundancy:.3f} | {budget_use:.3f} | {runtime:.1f} |".format(
+                method=row["method_label"],
+                budget=row["budget"],
+                top_n=row["top_n"],
+                recall=float(row["evidence_recall_mean"]),
+                f1=float(row["evidence_f1_mean"]),
+                redundancy=float(row["redundancy_mean"]),
+                budget_use=float(row["budget_utilization_mean"]),
+                runtime=float(row["runtime_units_mean"]),
+            )
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _run_summary_markdown(config: ExperimentConfig, dataset: Dataset, aggregate_rows: list[dict], optimal_rows: list[dict]) -> str:
+    executed = sum(1 for row in optimal_rows if row["status"] == "executed")
+    skipped = len(optimal_rows) - executed
+    best = max(aggregate_rows, key=lambda row: (float(row["evidence_f1_mean"]), float(row["evidence_recall_mean"])))
+    return "\n".join(
+        [
+            "# Experiment Summary",
+            "",
+            f"Dataset: `{config.dataset_name}` / `{config.split}`",
+            f"Queries: `{len(dataset.queries)}`",
+            f"Budgets: `{','.join(str(item) for item in config.budgets)}`",
+            f"Candidate sizes: `{','.join(str(item) for item in config.candidate_sizes)}`",
+            f"Best F1 method: `{best['method_label']}` at budget `{best['budget']}`, top_n `{best['top_n']}`.",
+            f"Optimal checks: `{executed}` executed, `{skipped}` skipped.",
+            "",
+        ]
+    )
+
+
+def _run_log(config: ExperimentConfig, dataset: Dataset, aggregate_rows: list[dict]) -> str:
+    return "\n".join(
+        [
+            "context-selection experiment",
+            f"dataset={config.dataset_name}",
+            f"split={config.split}",
+            f"queries={len(dataset.queries)}",
+            f"budgets={','.join(str(item) for item in config.budgets)}",
+            f"candidate_sizes={','.join(str(item) for item in config.candidate_sizes)}",
+            f"selectors={','.join(config.selectors)}",
+            f"objectives={','.join(config.objectives)}",
+            f"seed={config.seed}",
+            f"aggregate_rows={len(aggregate_rows)}",
+            "",
+        ]
+    )
+
+
+def _optimal_columns() -> tuple[str, ...]:
+    return (
+        "query_id",
+        "selector",
+        "objective",
+        "lambda_value",
+        "budget",
+        "top_n",
+        "status",
+        "reason",
+        "greedy_value",
+        "optimal_value",
+        "greedy_cost",
+        "optimal_cost",
+        "approx_ratio",
+    )
+
+
+def _maybe_float(value: str):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
 
 
 def _summary_markdown(metrics: dict) -> str:
@@ -102,11 +586,11 @@ def _summary_markdown(metrics: dict) -> str:
         lines.append(
             "| {method} | {recall:.3f} | {precision:.3f} | {f1:.3f} | {redundancy:.3f} | {budget:.3f} |".format(
                 method=method,
-                recall=values["evidence_recall_mean"],
-                precision=values["evidence_precision_mean"],
-                f1=values["evidence_f1_mean"],
-                redundancy=values["redundancy_mean"],
-                budget=values["budget_utilization_mean"],
+                recall=float(values["evidence_recall_mean"]),
+                precision=float(values["evidence_precision_mean"]),
+                f1=float(values["evidence_f1_mean"]),
+                redundancy=float(values["redundancy_mean"]),
+                budget=float(values["budget_utilization_mean"]),
             )
         )
     return "\n".join(lines) + "\n"

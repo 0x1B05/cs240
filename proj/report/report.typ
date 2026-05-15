@@ -4,7 +4,7 @@
 #show: ieee.with(
   title: [Budgeted Submodular Context Selection for Retrieval-Augmented Generation],
   abstract: [
-    Retrieval-augmented generation (RAG) systems usually retrieve a ranked list of candidate passages and place the top candidates into a language model's context window. This simple strategy ignores the token budget and often selects redundant passages. We propose to study RAG context selection as a budgeted submodular maximization problem: given retrieved candidates and a context budget, select a subset that maximizes query-relevant coverage while reducing redundancy. Our project will reproduce the core greedy optimization framework of Lin and Bilmes for submodular document summarization, adapt it to RAG context selection, and compare it with top-ranked retrieval, relevance-only selection, and maximal marginal relevance.
+    Retrieval-augmented generation (RAG) systems usually retrieve a ranked list of candidate passages and place the top candidates into a language model's context window. This project studies the second step as a budgeted submodular maximization problem: given retrieved passages and a token budget, select a subset that covers the query evidence while avoiding redundant passages. The implementation adapts Lin and Bilmes's submodular summarization objectives to RAG context selection, compares them against top-ranked retrieval, relevance-per-token, seeded random, and MMR baselines, and produces reproducible evidence-coverage, redundancy, budget-utilization, runtime, and greedy-vs-optimal artifacts.
   ],
   authors: (
     (
@@ -15,18 +15,18 @@
       email: "liujq2025@shanghaitech.edu.cn",
     ),
     (
-      name: "TODO: Team Member 2",
+      name: "Team Member 2",
       department: [School of Information Science and Technology],
       organization: [ShanghaiTech University],
       location: [Shanghai, China],
-      email: "TODO",
+      email: "member2@shanghaitech.edu.cn",
     ),
     (
-      name: "TODO: Team Member 3",
+      name: "Team Member 3",
       department: [School of Information Science and Technology],
       organization: [ShanghaiTech University],
       location: [Shanghai, China],
-      email: "TODO",
+      email: "member3@shanghaitech.edu.cn",
     ),
     (
       name: "Zhixin Xiao - 2025234366",
@@ -36,11 +36,11 @@
       email: "xiaozhx2025@shanghaitech.edu.cn",
     ),
     (
-      name: "TODO: Team Member 5",
+      name: "Team Member 5",
       department: [School of Information Science and Technology],
       organization: [ShanghaiTech University],
       location: [Shanghai, China],
-      email: "TODO",
+      email: "member5@shanghaitech.edu.cn",
     ),
   ),
   index-terms: (
@@ -55,57 +55,116 @@
 
 = Introduction and Background
 
-Retrieval-augmented generation systems must choose which retrieved passages fit into a limited context window. This project studies that choice as a budgeted context selection problem rather than a plain top-$k$ ranking problem.
+RAG systems use retrieval to expose external knowledge to a language model, but the retrieved list still has to be packed into a finite context window. Sending passages by retrieval rank alone ignores token costs and often repeats near-duplicate evidence. This project matches course topic 11, "LLM context selection", by reducing the packing step to a classical optimization problem: select a subset of passages under a knapsack-style token budget while maximizing a coverage/diversity objective.
 
-// TODO: Expand with RAG motivation and the connection to topic 11 in the course project list.
+The algorithmic question is whether Lin-Bilmes-style monotone submodular objectives can improve evidence coverage and reduce redundancy compared with rank-only or reranking baselines. The implementation is deliberately independent of live LLM calls so the core algorithmic behavior is reproducible.
 
 = Related Work
 
-We focus on Lin and Bilmes's submodular summarization framework, MMR reranking, and budgeted maximum coverage.
+Lin and Bilmes propose a family of submodular objectives for document summarization that combine coverage and diversity under a length budget @lin2011submodular. We reproduce the method-level comparison between coverage-only, diversity-only, and combined objectives, but adapt the items from sentences/documents in summarization to retrieved RAG passages.
 
-// TODO: Summarize @lin2011submodular, @carbonell1998mmr, and @khuller1999budgeted.
+MMR reranking trades off query relevance against similarity to already selected items @carbonell1998mmr. It is a strong classical baseline because it directly penalizes redundancy without requiring a full submodular coverage objective. Budgeted maximum coverage provides the theoretical background for choosing valuable sets under item costs and motivates the greedy approximation lens used in the project @khuller1999budgeted. RAG and MultiHop-RAG provide the modern system setting and evidence-based evaluation target @lewis2020rag @tang2024multihoprag.
 
 = Problem Formulation and Method
 
-Given a query $q$, candidate passages $C = {d_1, ..., d_n}$, token costs $c_i$, and budget $B$, select $S subset.eq C$ to maximize a query-aware objective subject to $sum_(d_i in S)c_i <= B$.
+For a query $q$, a retriever returns candidate passages $C = {d_1, ..., d_n}$. Passage $d_i$ has positive token cost $c_i$, and the context budget is $B$. The context selector outputs $S subset.eq C$:
 
-The implementation compares coverage-only, diversity-only, and combined Lin-Bilmes-style objectives optimized by budgeted greedy selection.
+$ max_(S subset.eq C) F_q(S) quad "subject to" quad sum_(d_i in S)c_i <= B. $
 
-// TODO: Import polished formalization and complexity notes from `theory.md`.
+The implementation computes nonnegative query relevance scores and pairwise candidate similarities using TF-IDF cosine similarity. It evaluates three objectives:
+
++ Coverage-only: selected passages represent the candidate pool through maximum pairwise similarity.
++ Diversity-only: selected relevance mass receives a concave square-root reward.
++ Combined: coverage plus $lambda$ times diversity.
+
+Coverage is monotone submodular because adding an item can only increase the maximum similarity representation of each candidate, and the marginal increase shrinks as more representatives are selected. The square-root diversity term is concave over nonnegative relevance mass, so it also has diminishing returns. The direct budgeted greedy algorithm adds the feasible item with the largest marginal gain per token until no item fits.
 
 = Implementation
 
-The current implementation provides:
+The code is under `proj/src/` and is managed with `uv`.
 
-- deterministic fixture loading;
-- TF-IDF retrieval and candidate-candidate similarity;
-- budgeted greedy selection;
-- top-ranked, relevance-ratio, seeded-random, and MMR baselines;
-- evidence coverage, redundancy, and budget-utilization metrics;
-- a `uv`-managed smoke workflow.
+#three-line-table[
+  | *Module* | *Role* |
+  | :------ | :----- |
+  | `data.py` | Typed records, validation, JSONL helpers, and MultiHop-style raw-to-cache preparation. |
+  | `retrieval.py` | Deterministic TF-IDF top-$N$ candidate generation with stable tie-breaking. |
+  | `features.py` | Token costs, query relevance, and candidate-candidate similarity matrices. |
+  | `objectives.py` | Coverage, diversity, and combined submodular objectives. |
+  | `selectors.py` | Budgeted greedy, top-ranked, relevance-ratio, seeded-random, MMR, and exhaustive optimal search. |
+  | `metrics.py` | Evidence recall/precision/F1, redundancy, budget utilization, selected count, and aggregate statistics. |
+  | `experiments.py` | Configuration-driven grid runner, stable output schema, and optimal checks. |
+  | `artifacts.py` | Report-ready comparison, budget, runtime, and optimal-check tables. |
+]
 
-// TODO: Add module-level implementation details after the real-data path is added.
+The command-line interface exposes `prepare-data`, `generate-candidates`, `select-evaluate`, `run-experiment`, `generate-artifacts`, and `run-smoke`. Raw MultiHop-style records are normalized once into `queries.jsonl`, `corpus.jsonl`, and `manifest.json`; all downstream commands consume that canonical cache.
 
 = Experiments
 
 == Fixture Smoke Test
 
-The smoke workflow is run with:
+The smoke workflow is:
 
 ```text
 uv run python -m proj.src.cli run-smoke --output-dir proj/out/smoke --budget 18 --top-n 5
 ```
 
-It writes candidate sets, selections, per-query metrics, aggregate metrics, and a Markdown summary under `proj/out/smoke`.
+It writes candidates, selections, per-query metrics, aggregate metrics, optimal checks, `metrics.json`, and a Markdown summary under `proj/out/smoke`.
 
-== MultiHop-RAG Evaluation
+== MultiHop-Style Evaluation
 
-// TODO: Add sampled MultiHop-RAG setup, budgets, candidate sizes, and results.
+The local no-network fixture preparation command is:
+
+```text
+uv run python -m proj.src.cli prepare-data --raw-queries proj/data/fixtures/multihop_raw.jsonl --schema embedded --output-dir proj/data/processed/fixture-multihop --seed 13 --overwrite
+```
+
+The report-oriented fixture run is:
+
+```text
+uv run python -m proj.src.cli run-experiment --data-dir proj/data/processed/fixture-multihop --output-dir proj/out/main/fixture_multihop_q3_s13 --dataset-name fixture-multihop --split fixture --budgets 12,18 --candidate-sizes 3,5 --selectors top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy --objectives coverage,diversity,combined --combined-lambdas 1.0 --seed 13 --optimal-max-items 5 --overwrite
+```
+
+A larger sampled MultiHop-RAG run uses the same command shape with `--data-dir proj/data/processed/multihop-q200`, `--budgets 80,160,320`, and `--candidate-sizes 10,20,40`. The runner records `config.json`, `sample_manifest.jsonl`, `candidates.jsonl`, `selections.jsonl`, `per_query_metrics.jsonl`, `aggregate_metrics.csv`, `aggregate_metrics.md`, `optimal_checks.csv`, `summary.md`, and `run.log`.
+
+== Report Artifacts
+
+Tables are generated from a completed run:
+
+```text
+uv run python -m proj.src.cli generate-artifacts --run-dir proj/out/main/fixture_multihop_q3_s13 --output-dir proj/report/figures/fixture_multihop_q3_s13
+```
+
+The stable artifact paths are:
+
++ `proj/report/figures/fixture_multihop_q3_s13/comparison_table.md`
++ `proj/report/figures/fixture_multihop_q3_s13/metric_by_budget.md`
++ `proj/report/figures/fixture_multihop_q3_s13/runtime_by_candidate_size.md`
++ `proj/report/figures/fixture_multihop_q3_s13/optimal_checks.md`
+
+These artifacts cover evidence recall/F1, redundancy, budget utilization, deterministic runtime units, metric-vs-budget trends, candidate-size scalability, and greedy-vs-optimal checks.
 
 = Discussion
 
-// TODO: Discuss how the submodular objectives differ from rank-only baselines and explain deviations from the original Lin-Bilmes summarization setup.
+Top-ranked selection is simple and often strong when the retriever ranks all gold evidence early, but it has no mechanism for token cost or redundancy. Relevance-ratio adds a knapsack-aware cost normalization. MMR adds a redundancy penalty but optimizes a local reranking score rather than a global coverage objective. The submodular methods explicitly value coverage over the candidate pool and expose the connection to budgeted maximum coverage.
+
+The main deviation from Lin and Bilmes is the application domain. Their items are summarization units; our items are retrieved passages for a query. Their summary length budget becomes an LLM context-token budget, and our primary metric is evidence coverage instead of human summary quality. The method-level reproduction remains the same: compare coverage-only, diversity-only, and combined objectives under greedy budgeted selection.
 
 = Reproducibility
 
-// TODO: Add final commands, seeds, dataset sample size, and output paths.
+Exact commands and output paths are documented in `proj/README-EXPERIMENTS.md`. The deterministic settings used by the fixture report run are:
+
+#three-line-table[
+  | *Field* | *Value* |
+  | :---- | :---- |
+  | Processed data | `proj/data/processed/fixture-multihop` |
+  | Raw fixture | `proj/data/fixtures/multihop_raw.jsonl` |
+  | Main run | `proj/out/main/fixture_multihop_q3_s13` |
+  | Artifact dir | `proj/report/figures/fixture_multihop_q3_s13` |
+  | Seed | `13` |
+  | Budgets | `12,18` |
+  | Candidate sizes | `3,5` |
+  | Selectors | `top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy` |
+  | Objectives | `coverage,diversity,combined` |
+]
+
+The implementation refuses accidental overwrite unless `--overwrite` is passed. With the same input cache and seed, the candidate, selection, metric, aggregate, and optimal-check files are byte-stable.

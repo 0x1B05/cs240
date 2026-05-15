@@ -13,7 +13,7 @@ The implementation represents candidates by document IDs, token costs, query rel
 
 ## Objectives
 
-The current fixture pipeline implements three method-level objectives:
+The experiment pipeline implements three method-level objectives:
 
 - coverage-only: rewards selected passages that represent many candidates through pairwise similarity;
 - diversity-only: applies a concave square-root reward to selected relevance mass;
@@ -32,10 +32,26 @@ Let `n` be the candidate count for one query.
 | Random seeded | `O(n)` | shuffles and scans |
 | MMR | `O(n^2)` | recomputes redundancy against selected items |
 | Direct greedy | `O(n^3)` worst case | up to `n` rounds, scans `n` candidates, objective recomputes coverage over `n` representatives |
-| Exhaustive optimal | `O(2^n n)` | only for tiny candidate sets |
+| Exhaustive optimal | `O(2^n n)` | only for candidate sets under `--optimal-max-items` |
 
-Lazy greedy is not implemented in the current smoke pipeline. If added, it should preserve direct greedy selections on deterministic fixtures.
+Lazy greedy is not required for the current report pipeline. If added, it should preserve direct greedy selections on deterministic fixtures.
 
 ## Reproduction and Adaptation
 
 The implementation reproduces the Lin-Bilmes method-level comparison between coverage-only, diversity-only, and combined submodular objectives under a fixed budget. It adapts the original summarization setting to RAG by treating retrieved passages as candidate sentences/documents and token budget as the knapsack constraint.
+
+The runner emits greedy-vs-optimal checks for small instances. If the candidate count is at or below the configured threshold, exhaustive search reports the optimal objective value, greedy objective value, costs, and approximation ratio. If the optimum is zero, the ratio is left undefined rather than reported as a misleading numeric value. Larger or baseline-only cases are written as skipped rows with machine-readable reasons.
+
+## Report Artifacts
+
+The aggregate metrics are grouped by selector, objective, lambda, budget, and candidate size. For every reported metric the runner writes mean and population standard deviation:
+
+- evidence recall;
+- evidence precision;
+- evidence F1;
+- redundancy;
+- budget utilization;
+- selected count;
+- deterministic runtime units.
+
+`proj/src/artifacts.py` converts the aggregate and optimal-check outputs into report-ready Markdown tables for method comparison, metric-vs-budget behavior, candidate-size runtime scaling, and optimal-check summaries.

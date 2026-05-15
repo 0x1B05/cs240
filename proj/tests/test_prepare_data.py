@@ -1,0 +1,226 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from proj.src.data import DataValidationError, load_dataset, prepare_multihop_cache, read_jsonl
+
+
+def test_prepare_embedded_multihop_cache_is_deterministic(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "raw-b",
+                        "question": "  Which city hosts the Louvre? ",
+                        "answer": "Paris",
+                        "evidence_list": [{"text": "The Louvre is a museum in Paris."}],
+                        "contexts": [
+                            {"id": "ctx-b", "text": "The Louvre is a museum in Paris."},
+                            {"id": "ctx-c", "text": "Berlin has Museum Island."},
+                        ],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "raw-a",
+                        "query": "Where is the Prado Museum?",
+                        "answer": "Madrid",
+                        "evidence_ids": ["ctx-a"],
+                        "candidates": [{"doc_id": "ctx-a", "contents": "The Prado Museum is in Madrid."}],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "processed"
+
+    first_manifest = prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=output_dir,
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+    first_queries = (output_dir / "queries.jsonl").read_text(encoding="utf-8")
+    first_corpus = (output_dir / "corpus.jsonl").read_text(encoding="utf-8")
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=output_dir,
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=True,
+    )
+
+    assert first_manifest["queries"] == 2
+    assert first_manifest["schema"] == "embedded"
+    assert first_queries == (output_dir / "queries.jsonl").read_text(encoding="utf-8")
+    assert first_corpus == (output_dir / "corpus.jsonl").read_text(encoding="utf-8")
+    assert [row["query_id"] for row in read_jsonl(output_dir / "queries.jsonl")] == ["raw-a", "raw-b"]
+    assert load_dataset(output_dir).queries[1].query == "Which city hosts the Louvre?"
+
+
+def test_prepare_split_multihop_cache_samples_queries_and_keeps_corpus(tmp_path):
+    raw_queries = tmp_path / "queries.jsonl"
+    raw_corpus = tmp_path / "corpus.jsonl"
+    raw_queries.write_text(
+        "\n".join(
+            [
+                json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_ids": ["d1"]}),
+                json.dumps({"id": "q2", "question": "second", "answer": "a2", "evidence_ids": ["d2"]}),
+                json.dumps({"id": "q3", "question": "third", "answer": "a3", "evidence_ids": ["d3"]}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    raw_corpus.write_text(
+        "\n".join(
+            [
+                json.dumps({"id": "d1", "passage": "first evidence"}),
+                json.dumps({"id": "d2", "passage": "second evidence"}),
+                json.dumps({"id": "d3", "passage": "third evidence"}),
+                json.dumps({"id": "d4", "passage": "extra distractor"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "processed"
+
+    manifest = prepare_multihop_cache(
+        raw_queries=raw_queries,
+        raw_corpus=raw_corpus,
+        output_dir=output_dir,
+        schema="split",
+        sample_size=2,
+        seed=7,
+        overwrite=False,
+    )
+
+    assert manifest["queries"] == 2
+    assert manifest["corpus"] == 4
+    assert manifest["sample_size"] == 2
+    assert len(read_jsonl(output_dir / "queries.jsonl")) == 2
+    assert len(read_jsonl(output_dir / "corpus.jsonl")) == 4
+
+
+def test_prepare_embedded_sample_keeps_candidate_pool_for_sampled_queries(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "q1",
+                        "question": "first query",
+                        "answer": "a1",
+                        "evidence_ids": ["d1"],
+                        "contexts": [
+                            {"id": "d1", "text": "first evidence"},
+                            {"id": "d2", "text": "first distractor"},
+                        ],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q2",
+                        "question": "second query",
+                        "answer": "a2",
+                        "evidence_ids": ["d3"],
+                        "contexts": [
+                            {"id": "d3", "text": "second evidence"},
+                            {"id": "d4", "text": "second distractor"},
+                        ],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=tmp_path / "processed",
+        schema="embedded",
+        sample_size=1,
+        seed=3,
+        overwrite=False,
+    )
+
+    query = read_jsonl(tmp_path / "processed" / "queries.jsonl")[0]
+    corpus_ids = {row["doc_id"] for row in read_jsonl(tmp_path / "processed" / "corpus.jsonl")}
+    if query["query_id"] == "q1":
+        assert corpus_ids == {"d1", "d2"}
+    else:
+        assert corpus_ids == {"d3", "d4"}
+
+
+def test_prepare_multihop_cache_rejects_missing_evidence(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where?",
+                "answer": "Nowhere",
+                "evidence_ids": ["missing"],
+                "contexts": [{"id": "d1", "text": "A document."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="missing evidence"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=tmp_path / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
+def test_prepare_multihop_cache_refuses_overwrite(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where?",
+                "answer": "Somewhere",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "A valid evidence document."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "processed"
+    output_dir.mkdir()
+    (output_dir / "queries.jsonl").write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="overwrite"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=output_dir,
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
