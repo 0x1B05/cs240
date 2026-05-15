@@ -15,6 +15,7 @@ from .data import (
     candidates_to_rows,
     load_dataset,
     read_jsonl,
+    token_cost,
     write_jsonl,
 )
 from .features import FeatureSet, build_features
@@ -199,7 +200,8 @@ def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, lis
     rows = read_jsonl(path)
     required = {"query_id", "doc_id", "rank", "score", "text", "token_cost", "top_n"}
     query_ids = {query.query_id for query in dataset.queries}
-    doc_ids = {doc.doc_id for doc in dataset.corpus}
+    doc_by_id = {doc.doc_id: doc for doc in dataset.corpus}
+    doc_ids = set(doc_by_id)
     grouped: dict[int, dict[str, list[Candidate]]] = {}
 
     for row_number, row in enumerate(rows, 1):
@@ -222,6 +224,11 @@ def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, lis
         except (TypeError, ValueError) as exc:
             raise DataValidationError(f"candidate score must be numeric at row {row_number}") from exc
         text = _candidate_text(row, "text", row_number)
+        canonical_doc = doc_by_id[doc_id]
+        if text != canonical_doc.text:
+            raise DataValidationError(f"candidate text does not match canonical corpus for doc_id={doc_id} at row {row_number}")
+        if token_cost != _canonical_token_cost(canonical_doc.text):
+            raise DataValidationError(f"candidate token_cost does not match canonical corpus for doc_id={doc_id} at row {row_number}")
         candidate = Candidate(query_id=query_id, doc_id=doc_id, rank=rank, score=score, text=text, token_cost=token_cost)
         grouped.setdefault(top_n, {}).setdefault(query_id, []).append(candidate)
 
@@ -295,6 +302,10 @@ def _candidate_positive_int(row: dict, field: str, row_number: int) -> int:
     if parsed <= 0:
         raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}")
     return parsed
+
+
+def _canonical_token_cost(text: str) -> int:
+    return token_cost(text)
 
 
 def _run_with_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[str, list[Candidate]]], config: ExperimentConfig) -> dict:

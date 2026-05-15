@@ -203,3 +203,22 @@ def test_select_evaluate_rejects_malformed_candidate_file(tmp_path):
             seed=13,
             overwrite=False,
         )
+
+
+def test_select_evaluate_rejects_candidate_payload_that_differs_from_corpus(tmp_path):
+    candidates_path = tmp_path / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    rows = read_jsonl(candidates_path)
+    rows[0]["text"] = "stale candidate text for a known doc id"
+    rows[1]["token_cost"] = rows[1]["token_cost"] + 100
+    candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="canonical corpus"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=tmp_path / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )

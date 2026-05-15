@@ -203,11 +203,13 @@ def _prepare_embedded_rows(raw_queries: Path) -> tuple[list[dict], list[dict]]:
         query_id = _first_text(row, ("query_id", "id"))
         query_text = _first_text(row, ("query", "question"))
         local_doc_ids: set[str] = set()
+        local_text_to_doc_id: dict[str, str] = {}
         for doc_like in _embedded_docs(row):
             document = _normalize_doc_like(doc_like, allow_hash_id=True)
             _add_document(corpus_by_id, text_to_doc_id, document)
             local_doc_ids.add(document["doc_id"])
-        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, allow_materialize=True)
+            local_text_to_doc_id.setdefault(document["text"], document["doc_id"])
+        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, local_text_to_doc_id=local_text_to_doc_id, allow_materialize=True)
         local_doc_ids.update(evidence_ids)
         prepared_queries.append(
             {
@@ -295,6 +297,7 @@ def _normalize_evidence_ids(
     corpus_by_id: dict[str, dict],
     text_to_doc_id: dict[str, str],
     *,
+    local_text_to_doc_id: dict[str, str] | None = None,
     allow_materialize: bool,
 ) -> list[str]:
     raw = row.get("evidence_ids", row.get("evidence_list"))
@@ -311,7 +314,7 @@ def _normalize_evidence_ids(
                 evidence_ids.append(document["doc_id"])
             elif _has_any_text(item, ("text", "passage", "contents")):
                 text = _normalize_text(_first_text(item, ("text", "passage", "contents")))
-                doc_id = text_to_doc_id.get(text)
+                doc_id = (local_text_to_doc_id or {}).get(text) or text_to_doc_id.get(text)
                 if doc_id is None:
                     if not allow_materialize:
                         raise DataValidationError("text evidence cannot be materialized")
@@ -326,6 +329,8 @@ def _normalize_evidence_ids(
             normalized = _normalize_text(value)
             if value in corpus_by_id:
                 evidence_ids.append(value)
+            elif local_text_to_doc_id and normalized in local_text_to_doc_id:
+                evidence_ids.append(local_text_to_doc_id[normalized])
             elif normalized in text_to_doc_id:
                 evidence_ids.append(text_to_doc_id[normalized])
             elif " " in normalized and allow_materialize:
