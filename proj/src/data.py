@@ -177,8 +177,7 @@ def _prepare_split_rows(raw_queries: Path, raw_corpus: Path | None) -> tuple[lis
     text_to_doc_ids: dict[str, list[str]] = {}
     for row in _read_records(raw_corpus):
         document = _normalize_doc_like(row, allow_hash_id=False)
-        _add_document(corpus_by_id, text_to_doc_id, document)
-        text_to_doc_ids.setdefault(document["text"], []).append(document["doc_id"])
+        _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
 
     query_rows: list[dict] = []
     for row in _read_records(raw_queries):
@@ -200,18 +199,41 @@ def _prepare_embedded_rows(raw_queries: Path) -> tuple[list[dict], list[dict]]:
     prepared_queries: list[dict] = []
     corpus_by_id: dict[str, dict] = {}
     text_to_doc_id: dict[str, str] = {}
+    text_to_doc_ids: dict[str, list[str]] = {}
+    raw_rows = _read_records(raw_queries)
+    local_doc_ids_by_row: list[set[str]] = []
+    local_text_to_doc_id_by_row: list[dict[str, str]] = []
+    local_text_to_doc_ids_by_row: list[dict[str, list[str]]] = []
 
-    for row in _read_records(raw_queries):
-        query_id = _first_text(row, ("query_id", "id"))
-        query_text = _first_text(row, ("query", "question"))
+    for row in raw_rows:
         local_doc_ids: set[str] = set()
         local_text_to_doc_id: dict[str, str] = {}
+        local_text_to_doc_ids: dict[str, list[str]] = {}
         for doc_like in _embedded_docs(row):
             document = _normalize_doc_like(doc_like, allow_hash_id=True)
-            _add_document(corpus_by_id, text_to_doc_id, document)
+            _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
             local_doc_ids.add(document["doc_id"])
             local_text_to_doc_id.setdefault(document["text"], document["doc_id"])
-        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, local_text_to_doc_id=local_text_to_doc_id, allow_materialize=True)
+            local_ids = local_text_to_doc_ids.setdefault(document["text"], [])
+            if document["doc_id"] not in local_ids:
+                local_ids.append(document["doc_id"])
+        local_doc_ids_by_row.append(local_doc_ids)
+        local_text_to_doc_id_by_row.append(local_text_to_doc_id)
+        local_text_to_doc_ids_by_row.append(local_text_to_doc_ids)
+
+    for index, row in enumerate(raw_rows):
+        query_id = _first_text(row, ("query_id", "id"))
+        query_text = _first_text(row, ("query", "question"))
+        local_doc_ids = local_doc_ids_by_row[index]
+        evidence_ids = _normalize_evidence_ids(
+            row,
+            corpus_by_id,
+            text_to_doc_id,
+            local_text_to_doc_id=local_text_to_doc_id_by_row[index],
+            local_text_to_doc_ids=local_text_to_doc_ids_by_row[index],
+            text_to_doc_ids=text_to_doc_ids,
+            allow_materialize=True,
+        )
         local_doc_ids.update(evidence_ids)
         prepared_queries.append(
             {
@@ -300,6 +322,7 @@ def _normalize_evidence_ids(
     text_to_doc_id: dict[str, str],
     *,
     local_text_to_doc_id: dict[str, str] | None = None,
+    local_text_to_doc_ids: dict[str, list[str]] | None = None,
     text_to_doc_ids: dict[str, list[str]] | None = None,
     allow_materialize: bool,
 ) -> list[str]:
@@ -319,7 +342,7 @@ def _normalize_evidence_ids(
                         existing = corpus_by_id.get(document["doc_id"])
                         if existing is None or existing["text"] != document["text"]:
                             raise DataValidationError(f"missing evidence in corpus: {document['doc_id']}")
-                    _add_document(corpus_by_id, text_to_doc_id, document)
+                    _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
                     evidence_ids.append(document["doc_id"])
                 elif evidence_id in corpus_by_id:
                     evidence_ids.append(evidence_id)
@@ -327,12 +350,12 @@ def _normalize_evidence_ids(
                     raise DataValidationError(f"missing evidence in corpus: {evidence_id}")
             elif _has_any_text(item, ("text", "passage", "contents")):
                 text = _normalize_text(_first_text(item, ("text", "passage", "contents")))
-                doc_id = _resolve_text_evidence_id(text, text_to_doc_id, local_text_to_doc_id, text_to_doc_ids, allow_materialize)
+                doc_id = _resolve_text_evidence_id(text, text_to_doc_id, local_text_to_doc_id, local_text_to_doc_ids, text_to_doc_ids)
                 if doc_id is None:
                     if not allow_materialize:
                         raise DataValidationError(f"missing evidence in corpus: {text}")
                     document = {"doc_id": _hash_doc_id(text), "text": text}
-                    _add_document(corpus_by_id, text_to_doc_id, document)
+                    _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
                     doc_id = document["doc_id"]
                 evidence_ids.append(doc_id)
             else:
@@ -342,16 +365,18 @@ def _normalize_evidence_ids(
             normalized = _normalize_text(value)
             if value in corpus_by_id:
                 evidence_ids.append(value)
-            elif _resolve_text_evidence_id(normalized, text_to_doc_id, local_text_to_doc_id, text_to_doc_ids, allow_materialize) is not None:
-                evidence_ids.append(_resolve_text_evidence_id(normalized, text_to_doc_id, local_text_to_doc_id, text_to_doc_ids, allow_materialize))
-            elif " " in normalized and allow_materialize:
-                document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
-                _add_document(corpus_by_id, text_to_doc_id, document)
-                evidence_ids.append(document["doc_id"])
-            elif " " in normalized:
-                raise DataValidationError(f"missing evidence in corpus: {normalized}")
             else:
-                evidence_ids.append(value)
+                doc_id = _resolve_text_evidence_id(normalized, text_to_doc_id, local_text_to_doc_id, local_text_to_doc_ids, text_to_doc_ids)
+                if doc_id is not None:
+                    evidence_ids.append(doc_id)
+                elif " " in normalized and allow_materialize:
+                    document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
+                    _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
+                    evidence_ids.append(document["doc_id"])
+                elif " " in normalized:
+                    raise DataValidationError(f"missing evidence in corpus: {normalized}")
+                else:
+                    evidence_ids.append(value)
         else:
             raise DataValidationError("evidence entries must be nonempty strings or objects")
     if len(evidence_ids) != len(set(evidence_ids)):
@@ -363,14 +388,21 @@ def _resolve_text_evidence_id(
     text: str,
     text_to_doc_id: dict[str, str],
     local_text_to_doc_id: dict[str, str] | None,
+    local_text_to_doc_ids: dict[str, list[str]] | None,
     text_to_doc_ids: dict[str, list[str]] | None,
-    allow_materialize: bool,
 ) -> str | None:
+    local_matches = local_text_to_doc_ids.get(text, []) if local_text_to_doc_ids is not None else []
+    if len(local_matches) > 1:
+        raise DataValidationError(f"ambiguous evidence text in corpus: {text}")
+    if len(local_matches) == 1:
+        return local_matches[0]
     if local_text_to_doc_id and text in local_text_to_doc_id:
         return local_text_to_doc_id[text]
     matches = text_to_doc_ids.get(text, []) if text_to_doc_ids is not None else []
-    if not allow_materialize and len(matches) > 1:
+    if len(matches) > 1:
         raise DataValidationError(f"ambiguous evidence text in corpus: {text}")
+    if len(matches) == 1:
+        return matches[0]
     return text_to_doc_id.get(text)
 
 
@@ -387,13 +419,22 @@ def _normalize_doc_like(row: dict, *, allow_hash_id: bool) -> dict:
     return {"doc_id": doc_id, "text": text}
 
 
-def _add_document(corpus_by_id: dict[str, dict], text_to_doc_id: dict[str, str], document: dict) -> None:
+def _add_document(
+    corpus_by_id: dict[str, dict],
+    text_to_doc_id: dict[str, str],
+    document: dict,
+    text_to_doc_ids: dict[str, list[str]] | None = None,
+) -> None:
     doc_id = document["doc_id"]
     existing = corpus_by_id.get(doc_id)
     if existing is not None and existing["text"] != document["text"]:
         raise DataValidationError(f"duplicate doc_id with conflicting text: {doc_id}")
     corpus_by_id[doc_id] = document
     text_to_doc_id.setdefault(document["text"], doc_id)
+    if text_to_doc_ids is not None:
+        doc_ids = text_to_doc_ids.setdefault(document["text"], [])
+        if doc_id not in doc_ids:
+            doc_ids.append(doc_id)
 
 
 def _sort_queries(rows: Iterable[dict]) -> list[dict]:

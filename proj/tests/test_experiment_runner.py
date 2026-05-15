@@ -123,6 +123,14 @@ def test_run_experiment_refuses_overwrite(tmp_path):
         run_experiment(config)
 
 
+def test_run_experiment_rejects_file_output_path(tmp_path):
+    output_path = tmp_path / "not-a-directory"
+    output_path.write_text("collision\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="output path is not a directory"):
+        run_experiment(ExperimentConfig(data_dir="proj/data/fixtures", output_dir=str(output_path)))
+
+
 def test_run_experiment_reproducible_selection_and_metric_files(tmp_path):
     first = tmp_path / "first"
     second = tmp_path / "second"
