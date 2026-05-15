@@ -85,6 +85,21 @@ def test_baselines_are_budget_feasible_and_seeded_random_is_stable():
     assert seeded_random(features, budget, seed=7) == seeded_random(features, budget, seed=7)
 
 
+def test_mmr_stops_when_best_remaining_score_is_nonpositive():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("a", "b", "c"),
+        costs=(1, 1, 1),
+        relevance=(1.0, 1.0, 1.0),
+        similarity=((1.0, 1.0, 1.0), (1.0, 1.0, 1.0), (1.0, 1.0, 1.0)),
+    )
+
+    result = mmr(features, budget=3, lambda_value=0.0)
+
+    assert len(result.indices) == 1
+    assert result.total_cost == 1
+
+
 def test_random_requires_seed_and_exhaustive_threshold():
     features = _fixture_features()
 
