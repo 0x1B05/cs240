@@ -4,7 +4,7 @@ import pytest
 
 from proj.src.data import DataValidationError, load_dataset
 from proj.src.features import FeatureSet, build_features
-from proj.src.objectives import combined_objective, coverage_objective, diversity_objective
+from proj.src.objectives import Objective, combined_objective, coverage_objective, diversity_objective
 from proj.src.retrieval import retrieve_top_n
 from proj.src.selectors import budgeted_greedy, exhaustive_optimal, mmr, relevance_ratio, seeded_random, top_ranked
 
@@ -53,6 +53,23 @@ def test_budgeted_greedy_respects_budget():
     assert result.objective_value is not None
 
 
+def test_budgeted_greedy_compares_against_best_feasible_singleton():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("cheap", "expensive"),
+        costs=(4, 10),
+        relevance=(0.0, 0.0),
+        similarity=((1.0, 0.0), (0.0, 1.0)),
+    )
+    objective = WeightedSingletonObjective((5.0, 11.0))
+
+    result = budgeted_greedy(features, objective, budget=10)
+
+    assert result.indices == (1,)
+    assert result.total_cost == 10
+    assert result.objective_value == 11.0
+
+
 def test_baselines_are_budget_feasible_and_seeded_random_is_stable():
     features = _fixture_features()
     budget = 15
@@ -82,3 +99,14 @@ def _fixture_features():
     query = dataset.queries[1]
     candidates = retrieve_top_n(dataset, top_n=5)[query.query_id]
     return build_features(query.query, candidates)
+
+
+class WeightedSingletonObjective(Objective):
+    def __init__(self, values: tuple[float, ...]):
+        self.values = values
+
+    def value(self, selected):
+        return sum(self.values[index] for index in set(selected))
+
+    def marginal_gain(self, selected, item: int) -> float:
+        return 0.0 if item in set(selected) else self.values[item]
