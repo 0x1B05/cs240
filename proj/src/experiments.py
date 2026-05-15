@@ -4,6 +4,7 @@ import csv
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 import random
 from statistics import mean, pstdev
@@ -93,6 +94,8 @@ def parse_grid(value: str, *, item_type, label: str) -> tuple:
             item = item_type(stripped)
         except ValueError as exc:
             raise DataValidationError(f"{label} grid contains invalid value: {stripped}") from exc
+        if isinstance(item, float) and not math.isfinite(item):
+            raise DataValidationError(f"{label} grid values must be finite")
         if item <= 0:
             raise DataValidationError(f"{label} grid values must be positive")
         items.append(item)

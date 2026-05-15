@@ -309,13 +309,19 @@ def _normalize_evidence_ids(
     for item in raw:
         if isinstance(item, dict):
             if _has_any_text(item, ("doc_id", "id")):
-                document = _normalize_doc_like(item, allow_hash_id=True)
-                if not allow_materialize:
-                    existing = corpus_by_id.get(document["doc_id"])
-                    if existing is None or existing["text"] != document["text"]:
-                        raise DataValidationError(f"missing evidence in corpus: {document['doc_id']}")
-                _add_document(corpus_by_id, text_to_doc_id, document)
-                evidence_ids.append(document["doc_id"])
+                evidence_id = _first_text(item, ("doc_id", "id"))
+                if _has_any_text(item, ("text", "passage", "contents")):
+                    document = _normalize_doc_like(item, allow_hash_id=True)
+                    if not allow_materialize:
+                        existing = corpus_by_id.get(document["doc_id"])
+                        if existing is None or existing["text"] != document["text"]:
+                            raise DataValidationError(f"missing evidence in corpus: {document['doc_id']}")
+                    _add_document(corpus_by_id, text_to_doc_id, document)
+                    evidence_ids.append(document["doc_id"])
+                elif evidence_id in corpus_by_id:
+                    evidence_ids.append(evidence_id)
+                else:
+                    raise DataValidationError(f"missing evidence in corpus: {evidence_id}")
             elif _has_any_text(item, ("text", "passage", "contents")):
                 text = _normalize_text(_first_text(item, ("text", "passage", "contents")))
                 doc_id = (local_text_to_doc_id or {}).get(text) or text_to_doc_id.get(text)
