@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 
 from proj.src.cli import main
 
@@ -74,6 +76,29 @@ def test_cli_missing_input_path_fails(tmp_path, capsys):
 
     assert exit_code == 2
     assert "missing input file" in captured.err
+
+
+def test_package_entry_point_propagates_failure_exit_code(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "proj.src",
+            "prepare-data",
+            "--raw-queries",
+            str(tmp_path / "missing.jsonl"),
+            "--schema",
+            "embedded",
+            "--output-dir",
+            str(tmp_path / "processed"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "missing input file" in result.stderr
 
 
 def test_cli_generate_candidates_writes_top_n_column(tmp_path, capsys):

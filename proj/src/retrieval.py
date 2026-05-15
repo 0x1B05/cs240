@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .data import Candidate, Dataset, DataValidationError, token_cost
-from .textmath import cosine, tfidf_vectors
+from .textmath import cosine, tfidf_transform
 
 
 def retrieve_top_n(dataset: Dataset, top_n: int) -> dict[str, list[Candidate]]:
@@ -10,9 +10,8 @@ def retrieve_top_n(dataset: Dataset, top_n: int) -> dict[str, list[Candidate]]:
 
     doc_texts = [doc.text for doc in dataset.corpus]
     query_texts = [query.query for query in dataset.queries]
-    vectors = tfidf_vectors(query_texts + doc_texts)
-    query_vectors = vectors[: len(query_texts)]
-    doc_vectors = vectors[len(query_texts) :]
+    query_vectors = tfidf_transform(query_texts, reference_texts=doc_texts)
+    doc_vectors = tfidf_transform(doc_texts, reference_texts=doc_texts)
 
     results: dict[str, list[Candidate]] = {}
     for query, query_vector in zip(dataset.queries, query_vectors, strict=True):

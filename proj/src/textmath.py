@@ -29,6 +29,29 @@ def tfidf_vectors(texts: list[str]) -> list[dict[str, float]]:
     return vectors
 
 
+def tfidf_transform(texts: list[str], *, reference_texts: list[str]) -> list[dict[str, float]]:
+    reference_docs = [tokenize(text) for text in reference_texts]
+    n_docs = len(reference_docs)
+    if n_docs == 0:
+        return [{} for _text in texts]
+
+    doc_freq: Counter[str] = Counter()
+    for tokens in reference_docs:
+        doc_freq.update(set(tokens))
+
+    vectors: list[dict[str, float]] = []
+    for tokens in (tokenize(text) for text in texts):
+        counts = Counter(tokens)
+        total = sum(counts.values()) or 1
+        vector: dict[str, float] = {}
+        for term, count in counts.items():
+            tf = count / total
+            idf = log((1 + n_docs) / (1 + doc_freq.get(term, 0))) + 1.0
+            vector[term] = tf * idf
+        vectors.append(vector)
+    return vectors
+
+
 def cosine(left: dict[str, float], right: dict[str, float]) -> float:
     if not left or not right:
         return 0.0
