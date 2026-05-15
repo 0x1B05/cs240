@@ -1,0 +1,3 @@
+{"answer": "Paris", "evidence_ids": ["raw-d1", "raw-d2"], "query": "Which city contains the Louvre and is the capital of France?", "query_id": "raw-q1"}
+{"answer": "Madrid", "evidence_ids": ["raw-d3", "raw-d4"], "query": "What city contains the Prado Museum and is Spain's capital?", "query_id": "raw-q2"}
+{"answer": "Mercury", "evidence_ids": ["raw-d6"], "query": "Which planet is closest to the Sun?", "query_id": "raw-q3"}

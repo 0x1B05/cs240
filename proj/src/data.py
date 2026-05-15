@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
+import random
 import re
+import shutil
 from typing import Iterable
 
 
@@ -89,6 +92,62 @@ def write_jsonl(path: Path, rows: Iterable[dict]) -> None:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def prepare_multihop_cache(
+    *,
+    raw_queries: Path,
+    raw_corpus: Path | None,
+    output_dir: Path,
+    schema: str,
+    sample_size: int | None,
+    seed: int,
+    overwrite: bool,
+) -> dict:
+    """Normalize local MultiHop-RAG-style records into the canonical cache.
+
+    Downstream code intentionally keeps one contract: `queries.jsonl` and
+    `corpus.jsonl`. This prep step is the only place that handles raw schema
+    aliases and embedded context pools.
+    """
+
+    schema = _resolve_schema(schema, raw_corpus)
+    if sample_size is not None and sample_size <= 0:
+        raise DataValidationError("sample_size must be positive")
+    if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
+        raise DataValidationError(f"output directory exists; pass overwrite to replace it: {output_dir}")
+
+    if schema == "split":
+        query_rows, corpus_rows = _prepare_split_rows(raw_queries, raw_corpus)
+    elif schema == "embedded":
+        query_rows, corpus_rows = _prepare_embedded_rows(raw_queries)
+    else:
+        raise DataValidationError(f"unsupported schema: {schema}")
+
+    query_rows, corpus_rows = _sample_prepared_rows(query_rows, corpus_rows, sample_size, seed, schema)
+    dataset = Dataset(
+        queries=tuple(_parse_query(row) for row in query_rows),
+        corpus=tuple(_parse_document(row) for row in corpus_rows),
+    )
+    validate_dataset(dataset)
+
+    if output_dir.exists() and overwrite:
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_jsonl(output_dir / "queries.jsonl", query_rows)
+    write_jsonl(output_dir / "corpus.jsonl", corpus_rows)
+    manifest = {
+        "schema": schema,
+        "raw_queries": str(raw_queries),
+        "raw_corpus": str(raw_corpus) if raw_corpus else None,
+        "sample_size": sample_size,
+        "seed": seed,
+        "queries": len(query_rows),
+        "corpus": len(corpus_rows),
+        "query_ids": [row["query_id"] for row in query_rows],
+    }
+    (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return manifest
+
+
 def load_dataset(data_dir: Path) -> Dataset:
     query_rows = read_jsonl(data_dir / "queries.jsonl")
     corpus_rows = read_jsonl(data_dir / "corpus.jsonl")
@@ -96,6 +155,240 @@ def load_dataset(data_dir: Path) -> Dataset:
     queries = tuple(_parse_query(row) for row in query_rows)
     validate_dataset(Dataset(queries=queries, corpus=corpus))
     return Dataset(queries=queries, corpus=corpus)
+
+
+def _resolve_schema(schema: str, raw_corpus: Path | None) -> str:
+    if schema not in {"auto", "split", "embedded"}:
+        raise DataValidationError("schema must be one of: auto, split, embedded")
+    if schema == "auto":
+        return "split" if raw_corpus is not None else "embedded"
+    if schema == "split" and raw_corpus is None:
+        raise DataValidationError("split schema requires raw_corpus")
+    if schema == "embedded" and raw_corpus is not None:
+        raise DataValidationError("embedded schema does not accept raw_corpus")
+    return schema
+
+
+def _prepare_split_rows(raw_queries: Path, raw_corpus: Path | None) -> tuple[list[dict], list[dict]]:
+    if raw_corpus is None:
+        raise DataValidationError("split schema requires raw_corpus")
+    corpus_by_id: dict[str, dict] = {}
+    text_to_doc_id: dict[str, str] = {}
+    for row in _read_records(raw_corpus):
+        document = _normalize_doc_like(row, allow_hash_id=False)
+        _add_document(corpus_by_id, text_to_doc_id, document)
+
+    query_rows: list[dict] = []
+    for row in _read_records(raw_queries):
+        query_id = _first_text(row, ("query_id", "id"))
+        query_text = _first_text(row, ("query", "question"))
+        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, allow_materialize=True)
+        query_rows.append(
+            {
+                "answer": str(row.get("answer", "")),
+                "evidence_ids": evidence_ids,
+                "query": _normalize_text(query_text),
+                "query_id": query_id,
+            }
+        )
+    return _sort_queries(query_rows), _sort_corpus(corpus_by_id.values())
+
+
+def _prepare_embedded_rows(raw_queries: Path) -> tuple[list[dict], list[dict]]:
+    prepared_queries: list[dict] = []
+    corpus_by_id: dict[str, dict] = {}
+    text_to_doc_id: dict[str, str] = {}
+
+    for row in _read_records(raw_queries):
+        query_id = _first_text(row, ("query_id", "id"))
+        query_text = _first_text(row, ("query", "question"))
+        local_doc_ids: set[str] = set()
+        for doc_like in _embedded_docs(row):
+            document = _normalize_doc_like(doc_like, allow_hash_id=True)
+            _add_document(corpus_by_id, text_to_doc_id, document)
+            local_doc_ids.add(document["doc_id"])
+        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, allow_materialize=True)
+        local_doc_ids.update(evidence_ids)
+        prepared_queries.append(
+            {
+                "answer": str(row.get("answer", "")),
+                "evidence_ids": evidence_ids,
+                "query": _normalize_text(query_text),
+                "query_id": query_id,
+                "_reachable_doc_ids": sorted(local_doc_ids),
+            }
+        )
+
+    return _sort_queries(prepared_queries), _sort_corpus(corpus_by_id.values())
+
+
+def _sample_prepared_rows(
+    query_rows: list[dict],
+    corpus_rows: list[dict],
+    sample_size: int | None,
+    seed: int,
+    schema: str,
+) -> tuple[list[dict], list[dict]]:
+    if sample_size is None or sample_size >= len(query_rows):
+        return _strip_internal_query_fields(_sort_queries(query_rows)), _sort_corpus(corpus_rows)
+    sorted_queries = _sort_queries(query_rows)
+    sampled = random.Random(seed).sample(sorted_queries, sample_size)
+    sampled = _sort_queries(sampled)
+    if schema == "split":
+        return sampled, _sort_corpus(corpus_rows)
+
+    needed = {doc_id for row in sampled for doc_id in row.get("evidence_ids", [])}
+    for row in sampled:
+        needed.update(row.get("_reachable_doc_ids", []))
+    filtered_corpus = [row for row in corpus_rows if row["doc_id"] in needed]
+    return _strip_internal_query_fields(sampled), _sort_corpus(filtered_corpus)
+
+
+def _read_records(path: Path) -> list[dict]:
+    if not path.exists():
+        raise DataValidationError(f"missing input file: {path}")
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        raise DataValidationError(f"empty input file: {path}")
+    if path.suffix == ".json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise DataValidationError(f"invalid JSON file: {path}") from exc
+        if isinstance(payload, dict):
+            for key in ("data", "records", "queries"):
+                if isinstance(payload.get(key), list):
+                    payload = payload[key]
+                    break
+        if not isinstance(payload, list):
+            raise DataValidationError(f"JSON file must contain a list of records: {path}")
+        rows = payload
+    else:
+        rows = read_jsonl(path)
+    for index, row in enumerate(rows, 1):
+        if not isinstance(row, dict):
+            raise DataValidationError(f"record must be an object at {path}:{index}")
+    return rows
+
+
+def _embedded_docs(row: dict) -> list[dict]:
+    for key in ("candidates", "contexts", "documents"):
+        value = row.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, list) or not value:
+            raise DataValidationError(f"{key} must be a nonempty list")
+        docs: list[dict] = []
+        for item in value:
+            if isinstance(item, dict):
+                docs.append(item)
+            elif isinstance(item, str):
+                docs.append({"text": item})
+            else:
+                raise DataValidationError(f"{key} entries must be objects or strings")
+        return docs
+    raise DataValidationError("embedded schema requires candidates, contexts, or documents")
+
+
+def _normalize_evidence_ids(
+    row: dict,
+    corpus_by_id: dict[str, dict],
+    text_to_doc_id: dict[str, str],
+    *,
+    allow_materialize: bool,
+) -> list[str]:
+    raw = row.get("evidence_ids", row.get("evidence_list"))
+    if not isinstance(raw, list) or not raw:
+        query_id = row.get("query_id", row.get("id", "<unknown>"))
+        raise DataValidationError(f"query {query_id} must include nonempty evidence_ids")
+
+    evidence_ids: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            if _has_any_text(item, ("doc_id", "id")):
+                document = _normalize_doc_like(item, allow_hash_id=True)
+                _add_document(corpus_by_id, text_to_doc_id, document)
+                evidence_ids.append(document["doc_id"])
+            elif _has_any_text(item, ("text", "passage", "contents")):
+                text = _normalize_text(_first_text(item, ("text", "passage", "contents")))
+                doc_id = text_to_doc_id.get(text)
+                if doc_id is None:
+                    if not allow_materialize:
+                        raise DataValidationError("text evidence cannot be materialized")
+                    document = {"doc_id": _hash_doc_id(text), "text": text}
+                    _add_document(corpus_by_id, text_to_doc_id, document)
+                    doc_id = document["doc_id"]
+                evidence_ids.append(doc_id)
+            else:
+                raise DataValidationError("evidence object must include an id or text")
+        elif isinstance(item, str) and item.strip():
+            value = item.strip()
+            normalized = _normalize_text(value)
+            if value in corpus_by_id:
+                evidence_ids.append(value)
+            elif normalized in text_to_doc_id:
+                evidence_ids.append(text_to_doc_id[normalized])
+            elif " " in normalized and allow_materialize:
+                document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
+                _add_document(corpus_by_id, text_to_doc_id, document)
+                evidence_ids.append(document["doc_id"])
+            else:
+                evidence_ids.append(value)
+        else:
+            raise DataValidationError("evidence entries must be nonempty strings or objects")
+    if len(evidence_ids) != len(set(evidence_ids)):
+        evidence_ids = list(dict.fromkeys(evidence_ids))
+    return evidence_ids
+
+
+def _normalize_doc_like(row: dict, *, allow_hash_id: bool) -> dict:
+    text = _normalize_text(_first_text(row, ("text", "passage", "contents")))
+    if token_cost(text) <= 0:
+        raise DataValidationError("document text has nonpositive token cost")
+    try:
+        doc_id = _first_text(row, ("doc_id", "id"))
+    except DataValidationError:
+        if not allow_hash_id:
+            raise
+        doc_id = _hash_doc_id(text)
+    return {"doc_id": doc_id, "text": text}
+
+
+def _add_document(corpus_by_id: dict[str, dict], text_to_doc_id: dict[str, str], document: dict) -> None:
+    doc_id = document["doc_id"]
+    existing = corpus_by_id.get(doc_id)
+    if existing is not None and existing["text"] != document["text"]:
+        raise DataValidationError(f"duplicate doc_id with conflicting text: {doc_id}")
+    corpus_by_id[doc_id] = document
+    text_to_doc_id.setdefault(document["text"], doc_id)
+
+
+def _sort_queries(rows: Iterable[dict]) -> list[dict]:
+    return sorted(rows, key=lambda row: row["query_id"])
+
+
+def _strip_internal_query_fields(rows: Iterable[dict]) -> list[dict]:
+    return [{key: value for key, value in row.items() if not key.startswith("_")} for row in rows]
+
+
+def _sort_corpus(rows: Iterable[dict]) -> list[dict]:
+    return sorted(rows, key=lambda row: row["doc_id"])
+
+
+def _first_text(row: dict, keys: tuple[str, ...]) -> str:
+    for key in keys:
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    raise DataValidationError(f"missing or empty required field: {'|'.join(keys)}")
+
+
+def _has_any_text(row: dict, keys: tuple[str, ...]) -> bool:
+    return any(isinstance(row.get(key), str) and row[key].strip() for key in keys)
+
+
+def _hash_doc_id(text: str) -> str:
+    return "doc_" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
 
 
 def _parse_document(row: dict) -> Document:
