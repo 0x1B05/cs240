@@ -96,7 +96,7 @@ The code is under `proj/src/` and is managed with `uv`.
   | `artifacts.py` | Report-ready comparison, budget, runtime, and optimal-check tables. |
 ]
 
-The command-line interface exposes `prepare-data`, `generate-candidates`, `select-evaluate`, `run-experiment`, `generate-artifacts`, and `run-smoke`. Raw MultiHop-style records are normalized once into `queries.jsonl`, `corpus.jsonl`, and `manifest.json`; all downstream commands consume that canonical cache.
+The command-line interface exposes `prepare-data`, `generate-candidates`, `select-evaluate`, `run-experiment`, `generate-artifacts`, and `run-smoke`. Raw MultiHop-style records are normalized once into `queries.jsonl`, `corpus.jsonl`, and `manifest.json`. The main runner can generate retrieval candidates internally, while the staged `generate-candidates` to `select-evaluate` path validates a saved candidate JSONL file before selection.
 
 = Experiments
 
@@ -124,7 +124,16 @@ The report-oriented fixture run is:
 uv run python -m proj.src.cli run-experiment --data-dir proj/data/processed/fixture-multihop --output-dir proj/out/main/fixture_multihop_q3_s13 --dataset-name fixture-multihop --split fixture --budgets 12,18 --candidate-sizes 3,5 --selectors top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy --objectives coverage,diversity,combined --combined-lambdas 1.0 --seed 13 --optimal-max-items 5 --overwrite
 ```
 
-A larger sampled MultiHop-RAG run uses the same command shape with `--data-dir proj/data/processed/multihop-q200`, `--budgets 80,160,320`, and `--candidate-sizes 10,20,40`. The runner records `config.json`, `sample_manifest.jsonl`, `candidates.jsonl`, `selections.jsonl`, `per_query_metrics.jsonl`, `aggregate_metrics.csv`, `aggregate_metrics.md`, `optimal_checks.csv`, `summary.md`, and `run.log`.
+A larger sampled MultiHop-RAG run uses the same command shape with `--data-dir proj/data/processed/multihop-q200`, `--sample-size 200`, `--sample-seed 13`, `--budgets 80,160,320`, and `--candidate-sizes 10,20,40`. The runner applies query-level sampling before retrieval, records the sampled query IDs in `sample_manifest.jsonl`, and writes `config.json`, `candidates.jsonl`, `selections.jsonl`, `per_query_metrics.jsonl`, `aggregate_metrics.csv`, `aggregate_metrics.md`, `optimal_checks.csv`, `summary.md`, and `run.log`.
+
+The staged candidate-file workflow is:
+
+```text
+uv run python -m proj.src.cli generate-candidates --data-dir proj/data/fixtures --output-path proj/out/candidates/fixture_top3.jsonl --top-n 3
+uv run python -m proj.src.cli select-evaluate --data-dir proj/data/fixtures --candidates-path proj/out/candidates/fixture_top3.jsonl --output-dir proj/out/staged/fixture_top3_b18 --budget 18 --seed 13 --overwrite
+```
+
+The downstream stage rejects candidate files missing `query_id`, `doc_id`, `rank`, `score`, `text`, `token_cost`, or `top_n`, and it checks query/document compatibility before evaluating selectors.
 
 == Report Artifacts
 

@@ -1,12 +1,15 @@
 import json
+from pathlib import Path
 
 import pytest
 
 from proj.src.data import DataValidationError, read_jsonl
 from proj.src.experiments import (
     ExperimentConfig,
+    generate_candidates,
     parse_grid,
     run_experiment,
+    select_evaluate,
 )
 
 
@@ -133,3 +136,70 @@ def test_run_experiment_reports_executed_and_skipped_optimal_checks(tmp_path):
     text = (output_dir / "optimal_checks.csv").read_text(encoding="utf-8")
     assert "executed" in text
     assert "too_many_items" in text
+
+
+def test_run_experiment_sample_size_controls_query_subset(tmp_path):
+    first = tmp_path / "sample-one"
+    second = tmp_path / "sample-two"
+    base = dict(
+        data_dir="proj/data/processed/fixture-multihop",
+        budgets=(12,),
+        candidate_sizes=(3,),
+        selectors=("top_ranked",),
+        objectives=("combined",),
+        seed=13,
+        optimal_max_items=3,
+    )
+
+    run_experiment(ExperimentConfig(output_dir=str(first), sample_size=1, sample_seed=1, **base))
+    run_experiment(ExperimentConfig(output_dir=str(second), sample_size=2, sample_seed=1, **base))
+
+    first_manifest = read_jsonl(first / "sample_manifest.jsonl")
+    second_manifest = read_jsonl(second / "sample_manifest.jsonl")
+    first_metrics = read_jsonl(first / "per_query_metrics.jsonl")
+    second_metrics = read_jsonl(second / "per_query_metrics.jsonl")
+    first_config = json.loads((first / "config.json").read_text(encoding="utf-8"))
+
+    assert len(first_manifest) == 1
+    assert len(second_manifest) == 2
+    assert len(first_metrics) == 1
+    assert len(second_metrics) == 2
+    assert first_config["query_ids"] == [row["query_id"] for row in first_manifest]
+    assert {row["query_id"] for row in first_metrics} == {row["query_id"] for row in first_manifest}
+
+
+def test_select_evaluate_consumes_saved_candidate_file(tmp_path):
+    candidates_path = tmp_path / "candidates.jsonl"
+    output_dir = tmp_path / "selected"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+
+    summary = select_evaluate(
+        data_dir=Path("proj/data/fixtures"),
+        candidates_path=candidates_path,
+        output_dir=output_dir,
+        budget=18,
+        seed=13,
+        overwrite=False,
+    )
+
+    assert summary["queries"] == 3
+    assert {row["top_n"] for row in read_jsonl(output_dir / "candidates.jsonl")} == {3}
+    assert (output_dir / "per_query_metrics.jsonl").exists()
+
+
+def test_select_evaluate_rejects_malformed_candidate_file(tmp_path):
+    candidates_path = tmp_path / "bad-candidates.jsonl"
+    candidates_path.write_text(
+        json.dumps({"query_id": "q1", "doc_id": "d1", "rank": 1, "score": 1.0, "text": "bad missing fields"}) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="missing required candidate columns"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=tmp_path / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
