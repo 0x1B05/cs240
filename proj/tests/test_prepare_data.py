@@ -114,6 +114,35 @@ def test_prepare_split_multihop_cache_samples_queries_and_keeps_corpus(tmp_path)
     assert len(read_jsonl(output_dir / "corpus.jsonl")) == 4
 
 
+def test_prepare_split_multihop_cache_rejects_evidence_text_missing_from_corpus(tmp_path):
+    raw_queries = tmp_path / "queries.jsonl"
+    raw_corpus = tmp_path / "corpus.jsonl"
+    raw_queries.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "first",
+                "answer": "a1",
+                "evidence_list": [{"text": "not present in corpus"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    raw_corpus.write_text(json.dumps({"id": "d1", "passage": "first evidence"}) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="missing evidence"):
+        prepare_multihop_cache(
+            raw_queries=raw_queries,
+            raw_corpus=raw_corpus,
+            output_dir=tmp_path / "processed",
+            schema="split",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_prepare_embedded_sample_keeps_candidate_pool_for_sampled_queries(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     raw_path.write_text(

@@ -182,7 +182,7 @@ def _prepare_split_rows(raw_queries: Path, raw_corpus: Path | None) -> tuple[lis
     for row in _read_records(raw_queries):
         query_id = _first_text(row, ("query_id", "id"))
         query_text = _first_text(row, ("query", "question"))
-        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, allow_materialize=True)
+        evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, allow_materialize=False)
         query_rows.append(
             {
                 "answer": str(row.get("answer", "")),
@@ -310,6 +310,10 @@ def _normalize_evidence_ids(
         if isinstance(item, dict):
             if _has_any_text(item, ("doc_id", "id")):
                 document = _normalize_doc_like(item, allow_hash_id=True)
+                if not allow_materialize:
+                    existing = corpus_by_id.get(document["doc_id"])
+                    if existing is None or existing["text"] != document["text"]:
+                        raise DataValidationError(f"missing evidence in corpus: {document['doc_id']}")
                 _add_document(corpus_by_id, text_to_doc_id, document)
                 evidence_ids.append(document["doc_id"])
             elif _has_any_text(item, ("text", "passage", "contents")):
@@ -317,7 +321,7 @@ def _normalize_evidence_ids(
                 doc_id = (local_text_to_doc_id or {}).get(text) or text_to_doc_id.get(text)
                 if doc_id is None:
                     if not allow_materialize:
-                        raise DataValidationError("text evidence cannot be materialized")
+                        raise DataValidationError(f"missing evidence in corpus: {text}")
                     document = {"doc_id": _hash_doc_id(text), "text": text}
                     _add_document(corpus_by_id, text_to_doc_id, document)
                     doc_id = document["doc_id"]
@@ -337,6 +341,8 @@ def _normalize_evidence_ids(
                 document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
                 _add_document(corpus_by_id, text_to_doc_id, document)
                 evidence_ids.append(document["doc_id"])
+            elif " " in normalized:
+                raise DataValidationError(f"missing evidence in corpus: {normalized}")
             else:
                 evidence_ids.append(value)
         else:
