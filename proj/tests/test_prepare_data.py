@@ -98,6 +98,108 @@ def test_prepare_embedded_accepts_id_only_evidence_objects(tmp_path):
     assert read_jsonl(tmp_path / "processed" / "queries.jsonl")[0]["evidence_ids"] == ["d1"]
 
 
+def test_prepare_embedded_rejects_ambiguous_global_text_only_evidence(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    duplicate_text = "shared supporting passage"
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "q1",
+                        "question": "first",
+                        "answer": "a1",
+                        "evidence_ids": ["d1"],
+                        "contexts": [{"id": "d1", "text": duplicate_text}],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q2",
+                        "question": "second",
+                        "answer": "a2",
+                        "evidence_ids": ["d2"],
+                        "contexts": [{"id": "d2", "text": duplicate_text}],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q3",
+                        "question": "third",
+                        "answer": "a3",
+                        "evidence_list": [duplicate_text],
+                        "contexts": [{"id": "d3", "text": "local distractor passage"}],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="ambiguous evidence text"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=tmp_path / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
+def test_prepare_embedded_rejects_ambiguous_materialized_text_only_evidence(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    duplicate_text = "shared materialized evidence"
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "q1",
+                        "question": "first",
+                        "answer": "a1",
+                        "evidence_list": [{"id": "e1", "text": duplicate_text}],
+                        "contexts": [{"id": "d1", "text": "first local context"}],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q2",
+                        "question": "second",
+                        "answer": "a2",
+                        "evidence_list": [{"id": "e2", "text": duplicate_text}],
+                        "contexts": [{"id": "d2", "text": "second local context"}],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q3",
+                        "question": "third",
+                        "answer": "a3",
+                        "evidence_list": [duplicate_text],
+                        "contexts": [{"id": "d3", "text": "third local context"}],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="ambiguous evidence text"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=tmp_path / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_prepare_split_multihop_cache_samples_queries_and_keeps_corpus(tmp_path):
     raw_queries = tmp_path / "queries.jsonl"
     raw_corpus = tmp_path / "corpus.jsonl"

@@ -310,11 +310,7 @@ def _canonical_token_cost(text: str) -> int:
 def _run_with_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[str, list[Candidate]]], config: ExperimentConfig) -> dict:
     _validate_config(config)
     output_dir = Path(config.output_dir)
-    if output_dir.exists() and any(output_dir.iterdir()) and not config.overwrite:
-        raise DataValidationError(f"output directory exists; pass --overwrite to replace it: {output_dir}")
-    if output_dir.exists() and config.overwrite:
-        _clear_output_dir(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    _prepare_output_dir(output_dir, overwrite=config.overwrite)
 
     query_by_id = {query.query_id: query for query in dataset.queries}
     features_by_key: dict[tuple[int, str], FeatureSet] = {}
@@ -440,6 +436,16 @@ def _clear_output_dir(output_dir: Path) -> None:
             path.rmdir()
         else:
             path.unlink()
+
+
+def _prepare_output_dir(output_dir: Path, *, overwrite: bool) -> None:
+    if output_dir.exists() and not output_dir.is_dir():
+        raise DataValidationError(f"output path is not a directory: {output_dir}")
+    if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
+        raise DataValidationError(f"output directory exists; pass --overwrite to replace it: {output_dir}")
+    if output_dir.exists() and overwrite:
+        _clear_output_dir(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
 
 def _candidate_rows(candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) -> list[dict]:
