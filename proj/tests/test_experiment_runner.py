@@ -22,6 +22,10 @@ def test_parse_grid_rejects_empty_nonpositive_and_duplicates():
         parse_grid("0,8", item_type=int, label="budgets")
     with pytest.raises(DataValidationError, match="duplicate"):
         parse_grid("8,8", item_type=int, label="budgets")
+    with pytest.raises(DataValidationError, match="finite"):
+        parse_grid("nan", item_type=float, label="combined_lambdas")
+    with pytest.raises(DataValidationError, match="finite"):
+        parse_grid("inf", item_type=float, label="combined_lambdas")
 
 
 def test_run_experiment_writes_required_outputs(tmp_path):
