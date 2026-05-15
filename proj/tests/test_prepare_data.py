@@ -167,6 +167,51 @@ def test_prepare_embedded_sample_keeps_candidate_pool_for_sampled_queries(tmp_pa
         assert corpus_ids == {"d3", "d4"}
 
 
+def test_prepare_text_only_evidence_prefers_current_embedded_context(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    shared_text = "Shared evidence text appears in both local contexts."
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "q1",
+                        "question": "first query",
+                        "answer": "a1",
+                        "evidence_list": [{"text": shared_text}],
+                        "contexts": [{"id": "q1-local", "text": shared_text}],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q2",
+                        "question": "second query",
+                        "answer": "a2",
+                        "evidence_list": [{"text": shared_text}],
+                        "contexts": [{"id": "q2-local", "text": shared_text}],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=tmp_path / "processed",
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+
+    evidence_by_query = {row["query_id"]: row["evidence_ids"] for row in read_jsonl(tmp_path / "processed" / "queries.jsonl")}
+
+    assert evidence_by_query == {"q1": ["q1-local"], "q2": ["q2-local"]}
+
+
 def test_prepare_multihop_cache_rejects_missing_evidence(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     raw_path.write_text(
