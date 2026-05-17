@@ -243,6 +243,17 @@ def test_run_experiment_rejects_overwrite_of_data_dir(tmp_path):
     assert (output_dir / "corpus.jsonl").exists()
 
 
+def test_run_experiment_rejects_output_nested_under_data_dir(tmp_path):
+    data_dir = tmp_path / "fixture-copy"
+    _copy_fixture_dataset(data_dir)
+    output_dir = data_dir / "nested-output"
+
+    with pytest.raises(DataValidationError, match="output directory must not contain experiment inputs"):
+        run_experiment(ExperimentConfig(data_dir=str(data_dir), output_dir=str(output_dir)))
+
+    assert not output_dir.exists()
+
+
 def test_run_experiment_reproducible_selection_and_metric_files(tmp_path):
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -373,7 +384,9 @@ def test_random_seeded_baseline_is_salted_by_query_id(tmp_path):
 
 
 def test_select_evaluate_consumes_saved_candidate_file(tmp_path):
-    candidates_path = tmp_path / "candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
     output_dir = tmp_path / "selected"
     generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
 
@@ -408,6 +421,26 @@ def test_select_evaluate_rejects_overwrite_of_candidate_directory(tmp_path):
         )
 
     assert candidates_path.exists()
+
+
+def test_select_evaluate_rejects_output_nested_under_candidate_directory(tmp_path):
+    candidates_dir = tmp_path / "staged"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    output_dir = candidates_dir / "outputs"
+
+    with pytest.raises(DataValidationError, match="output directory must not contain experiment inputs"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=output_dir,
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
+
+    assert not output_dir.exists()
 
 
 def test_generate_candidates_rejects_output_inside_data_dir(tmp_path):
@@ -459,7 +492,9 @@ def _copy_fixture_dataset(output_dir: Path) -> None:
 
 
 def test_select_evaluate_rejects_malformed_candidate_file(tmp_path):
-    candidates_path = tmp_path / "bad-candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "bad-candidates.jsonl"
     candidates_path.write_text(
         json.dumps({"query_id": "q1", "doc_id": "d1", "rank": 1, "score": 1.0, "text": "bad missing fields"}) + "\n",
         encoding="utf-8",
@@ -477,7 +512,9 @@ def test_select_evaluate_rejects_malformed_candidate_file(tmp_path):
 
 
 def test_select_evaluate_rejects_candidate_payload_that_differs_from_corpus(tmp_path):
-    candidates_path = tmp_path / "candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
     generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
     rows = read_jsonl(candidates_path)
     rows[0]["text"] = "stale candidate text for a known doc id"
@@ -496,7 +533,9 @@ def test_select_evaluate_rejects_candidate_payload_that_differs_from_corpus(tmp_
 
 
 def test_select_evaluate_uses_safe_default_optimal_threshold(tmp_path):
-    candidates_path = tmp_path / "candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
     output_dir = tmp_path / "selected"
     generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=20)
 
@@ -515,7 +554,9 @@ def test_select_evaluate_uses_safe_default_optimal_threshold(tmp_path):
 
 
 def test_select_evaluate_rejects_float_candidate_integer_fields(tmp_path):
-    candidates_path = tmp_path / "candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
     generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
     rows = read_jsonl(candidates_path)
     rows[0]["rank"] = 1.5
@@ -533,7 +574,9 @@ def test_select_evaluate_rejects_float_candidate_integer_fields(tmp_path):
 
 
 def test_select_evaluate_rejects_truncated_candidate_blocks(tmp_path):
-    candidates_path = tmp_path / "candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
     generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
     rows = read_jsonl(candidates_path)
     rows = [row for row in rows if not (row["query_id"] == "q1" and row["rank"] == 3)]

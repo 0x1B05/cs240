@@ -473,10 +473,10 @@ def _validate_output_file_outside_input_dir(output_path: Path, input_dir: Path) 
 def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple[Path, ...] = ()) -> None:
     if output_dir.exists() and not output_dir.is_dir():
         raise DataValidationError(f"output path is not a directory: {output_dir}")
+    _validate_output_does_not_contain_inputs(output_dir, input_paths)
     if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
         raise DataValidationError(f"output directory exists; pass --overwrite to replace it: {output_dir}")
     if output_dir.exists() and overwrite:
-        _validate_output_does_not_contain_inputs(output_dir, input_paths)
         if output_dir.is_symlink():
             output_dir.unlink()
         else:
@@ -486,7 +486,7 @@ def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple
 
 def _validate_output_does_not_contain_inputs(output_dir: Path, input_paths: tuple[Path, ...]) -> None:
     try:
-        resolved_output = output_dir.resolve()
+        resolved_output = output_dir.resolve(strict=False)
     except OSError as exc:
         raise DataValidationError(f"cannot resolve output directory: {output_dir}") from exc
     for input_path in input_paths:
@@ -494,7 +494,16 @@ def _validate_output_does_not_contain_inputs(output_dir: Path, input_paths: tupl
             resolved_input = input_path.resolve(strict=False)
         except OSError as exc:
             raise DataValidationError(f"cannot resolve experiment input path: {input_path}") from exc
-        if resolved_input == resolved_output or resolved_output in resolved_input.parents:
+        if input_path.exists():
+            protected_root = resolved_input if input_path.is_dir() else resolved_input.parent
+        else:
+            protected_root = resolved_input
+        if (
+            resolved_output == resolved_input
+            or resolved_output == protected_root
+            or protected_root in resolved_output.parents
+            or resolved_output in resolved_input.parents
+        ):
             raise DataValidationError(f"output directory must not contain experiment inputs: {output_dir}")
 
 

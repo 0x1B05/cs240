@@ -6,8 +6,20 @@ import pytest
 from proj.src.data import DataValidationError, load_dataset, prepare_multihop_cache, read_jsonl
 
 
+def _raw_path(tmp_path: Path, filename: str = "raw.jsonl") -> Path:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir(exist_ok=True)
+    return raw_dir / filename
+
+
+def _split_raw_paths(tmp_path: Path) -> tuple[Path, Path]:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir(exist_ok=True)
+    return raw_dir / "queries.jsonl", raw_dir / "corpus.jsonl"
+
+
 def test_prepare_embedded_multihop_cache_is_deterministic(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         "\n".join(
             [
@@ -71,7 +83,7 @@ def test_prepare_embedded_multihop_cache_is_deterministic(tmp_path):
 
 @pytest.mark.parametrize("overwrite", [False, True])
 def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         json.dumps(
             {
@@ -101,7 +113,7 @@ def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
 
 
 def test_prepare_embedded_overwrite_replaces_symlinked_output_dir(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         json.dumps(
             {
@@ -139,7 +151,7 @@ def test_prepare_embedded_overwrite_replaces_symlinked_output_dir(tmp_path):
 
 
 def test_prepare_embedded_accepts_id_only_evidence_objects(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         json.dumps(
             {
@@ -168,7 +180,7 @@ def test_prepare_embedded_accepts_id_only_evidence_objects(tmp_path):
 
 
 def test_prepare_embedded_resolves_one_token_text_evidence(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         json.dumps(
             {
@@ -201,7 +213,7 @@ def test_prepare_embedded_resolves_one_token_text_evidence(tmp_path):
 
 
 def test_prepare_embedded_rejects_ambiguous_global_text_only_evidence(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     duplicate_text = "shared supporting passage"
     raw_path.write_text(
         "\n".join(
@@ -252,7 +264,7 @@ def test_prepare_embedded_rejects_ambiguous_global_text_only_evidence(tmp_path):
 
 
 def test_prepare_embedded_rejects_ambiguous_materialized_text_only_evidence(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     duplicate_text = "shared materialized evidence"
     raw_path.write_text(
         "\n".join(
@@ -303,8 +315,7 @@ def test_prepare_embedded_rejects_ambiguous_materialized_text_only_evidence(tmp_
 
 
 def test_prepare_split_multihop_cache_samples_queries_and_keeps_corpus(tmp_path):
-    raw_queries = tmp_path / "queries.jsonl"
-    raw_corpus = tmp_path / "corpus.jsonl"
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
     raw_queries.write_text(
         "\n".join(
             [
@@ -348,8 +359,7 @@ def test_prepare_split_multihop_cache_samples_queries_and_keeps_corpus(tmp_path)
 
 
 def test_prepare_split_accepts_id_only_evidence_objects(tmp_path):
-    raw_queries = tmp_path / "queries.jsonl"
-    raw_corpus = tmp_path / "corpus.jsonl"
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
     raw_queries.write_text(
         json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_list": [{"id": "d1"}]}) + "\n",
         encoding="utf-8",
@@ -370,8 +380,7 @@ def test_prepare_split_accepts_id_only_evidence_objects(tmp_path):
 
 
 def test_prepare_split_multihop_cache_rejects_evidence_text_missing_from_corpus(tmp_path):
-    raw_queries = tmp_path / "queries.jsonl"
-    raw_corpus = tmp_path / "corpus.jsonl"
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
     raw_queries.write_text(
         json.dumps(
             {
@@ -399,8 +408,7 @@ def test_prepare_split_multihop_cache_rejects_evidence_text_missing_from_corpus(
 
 
 def test_prepare_split_rejects_ambiguous_text_only_evidence(tmp_path):
-    raw_queries = tmp_path / "queries.jsonl"
-    raw_corpus = tmp_path / "corpus.jsonl"
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
     duplicate_text = "duplicate supporting passage"
     raw_queries.write_text(
         json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_list": [duplicate_text]}) + "\n",
@@ -430,7 +438,7 @@ def test_prepare_split_rejects_ambiguous_text_only_evidence(tmp_path):
 
 
 def test_prepare_embedded_sample_keeps_candidate_pool_for_sampled_queries(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         "\n".join(
             [
@@ -483,7 +491,7 @@ def test_prepare_embedded_sample_keeps_candidate_pool_for_sampled_queries(tmp_pa
 
 
 def test_prepare_text_only_evidence_prefers_current_embedded_context(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     shared_text = "Shared evidence text appears in both local contexts."
     raw_path.write_text(
         "\n".join(
@@ -528,7 +536,7 @@ def test_prepare_text_only_evidence_prefers_current_embedded_context(tmp_path):
 
 
 def test_prepare_multihop_cache_rejects_missing_evidence(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         json.dumps(
             {
@@ -556,7 +564,7 @@ def test_prepare_multihop_cache_rejects_missing_evidence(tmp_path):
 
 
 def test_prepare_multihop_cache_refuses_overwrite(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_path = _raw_path(tmp_path)
     raw_path.write_text(
         json.dumps(
             {
@@ -616,6 +624,40 @@ def test_prepare_multihop_cache_rejects_overwrite_of_raw_input_directory(tmp_pat
         )
 
     assert raw_path.exists()
+
+
+def test_prepare_multihop_cache_rejects_output_nested_under_raw_input_directory(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    raw_path = raw_dir / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where?",
+                "answer": "Somewhere",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "A valid evidence document."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_dir = raw_dir / "processed"
+
+    with pytest.raises(DataValidationError, match="output directory must not contain raw input files"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=output_dir,
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+    assert raw_path.exists()
+    assert not output_dir.exists()
 
 
 def test_prepare_split_cache_rejects_overwrite_of_raw_input_parent(tmp_path):
