@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 import proj.src.experiments as experiments_module
+from proj.src.artifacts import generate_artifacts
 from proj.src.data import DataValidationError, load_dataset, read_jsonl
 from proj.src.experiments import (
     ExperimentConfig,
@@ -142,6 +143,28 @@ def test_run_experiment_rejects_empty_combined_lambdas_before_writing(tmp_path):
         )
 
     assert not output_dir.exists()
+
+
+def test_run_experiment_allows_empty_lambdas_without_combined_objective(tmp_path):
+    output_dir = tmp_path / "coverage-only-run"
+
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(18,),
+            candidate_sizes=(3,),
+            selectors=("budgeted_greedy",),
+            objectives=("coverage",),
+            combined_lambdas=(),
+            seed=13,
+            optimal_max_items=3,
+        )
+    )
+
+    labels = {row["method_label"] for row in read_jsonl(output_dir / "selections.jsonl")}
+
+    assert labels == {"submodular_coverage"}
 
 
 def test_runtime_units_reflect_selector_work(tmp_path):
@@ -450,6 +473,29 @@ def test_select_evaluate_consumes_saved_candidate_file(tmp_path):
     assert summary["queries"] == 3
     assert {row["top_n"] for row in read_jsonl(output_dir / "candidates.jsonl")} == {3}
     assert (output_dir / "per_query_metrics.jsonl").exists()
+
+
+def test_select_evaluate_defaults_generate_report_artifacts(tmp_path):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    output_dir = tmp_path / "selected"
+    artifact_dir = tmp_path / "artifacts"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=5)
+
+    select_evaluate(
+        data_dir=Path("proj/data/fixtures"),
+        candidates_path=candidates_path,
+        output_dir=output_dir,
+        budget=18,
+        seed=13,
+        optimal_max_items=5,
+        overwrite=False,
+    )
+
+    outputs = generate_artifacts(output_dir, artifact_dir)
+
+    assert artifact_dir / "comparison_table.md" in outputs
 
 
 def test_select_evaluate_rejects_overwrite_of_candidate_directory(tmp_path):
