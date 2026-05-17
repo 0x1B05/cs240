@@ -176,6 +176,23 @@ def test_generate_artifacts_rejects_file_output_dir(tmp_path):
     assert artifact_path.read_text(encoding="utf-8") == "collision\n"
 
 
+def test_generate_artifacts_rejects_symlink_output_dir(tmp_path):
+    run_dir = tmp_path / "run"
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    artifact_dir = tmp_path / "artifacts-link"
+    artifact_dir.symlink_to(target_dir, target_is_directory=True)
+    _write_minimal_artifact_inputs(run_dir, [_optimal_row("budgeted_greedy", "combined", "1.0", 18, 5)])
+
+    with pytest.raises(ArtifactValidationError, match="output path is a symlink"):
+        generate_artifacts(run_dir, artifact_dir)
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert not (target_dir / "comparison_table.md").exists()
+
+
 def test_generate_artifacts_rejects_incompatible_metric_schema(tmp_path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
