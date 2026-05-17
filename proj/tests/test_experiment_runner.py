@@ -303,6 +303,36 @@ def test_run_experiment_overwrite_replaces_symlinked_output_dir(tmp_path):
     assert (output_dir / "config.json").exists()
 
 
+def test_run_experiment_rejects_symlink_output_inside_data_dir_with_overwrite(tmp_path):
+    data_dir = tmp_path / "fixture-copy"
+    _copy_fixture_dataset(data_dir)
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_dir = data_dir / "run-link"
+    output_dir.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output directory must not contain experiment inputs"):
+        run_experiment(
+            ExperimentConfig(
+                data_dir=str(data_dir),
+                output_dir=str(output_dir),
+                budgets=(12,),
+                candidate_sizes=(3,),
+                selectors=("top_ranked",),
+                objectives=("combined",),
+                seed=13,
+                optimal_max_items=3,
+                overwrite=True,
+            )
+        )
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert output_dir.is_symlink()
+    assert not (target_dir / "config.json").exists()
+
+
 def test_run_experiment_rejects_overwrite_of_data_dir(tmp_path):
     output_dir = tmp_path / "fixture-copy"
     _copy_fixture_dataset(output_dir)
@@ -460,6 +490,25 @@ def test_select_evaluate_consumes_sampled_run_candidate_file(tmp_path):
     assert summary["queries"] == 2
     assert {row["query_id"] for row in read_jsonl(selected / "per_query_metrics.jsonl")} == expected_query_ids
     assert json.loads((selected / "config.json").read_text(encoding="utf-8"))["query_ids"] == sorted(expected_query_ids)
+
+
+def test_select_evaluate_rejects_partial_candidate_file_without_sample_manifest(tmp_path):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    rows = [row for row in read_jsonl(candidates_path) if row["query_id"] != "q3"]
+    candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="candidate file missing queries"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=tmp_path / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
 
 
 def test_random_seeded_baseline_is_salted_by_query_id(tmp_path):
@@ -746,6 +795,10 @@ def test_select_evaluate_rejects_inconsistent_sampled_candidate_query_sets(tmp_p
     rows = [dict(row, top_n=3) for row in source_rows if row["query_id"] in {"q1", "q2"} and row["rank"] <= 3]
     rows.extend(row for row in source_rows if row["query_id"] == "q1")
     candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+    (candidates_dir / "sample_manifest.jsonl").write_text(
+        "\n".join(json.dumps({"query_id": query_id}) for query_id in ["q1", "q2"]) + "\n",
+        encoding="utf-8",
+    )
 
     with pytest.raises(DataValidationError, match="inconsistent query sets"):
         select_evaluate(
