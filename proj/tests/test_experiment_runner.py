@@ -132,6 +132,34 @@ def test_run_experiment_rejects_file_output_path(tmp_path):
         run_experiment(ExperimentConfig(data_dir="proj/data/fixtures", output_dir=str(output_path)))
 
 
+def test_run_experiment_overwrite_unlinks_symlink_without_following_target(tmp_path):
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_dir = tmp_path / "run"
+    output_dir.mkdir()
+    (output_dir / "stale.txt").write_text("stale\n", encoding="utf-8")
+    (output_dir / "linked").symlink_to(target_dir, target_is_directory=True)
+
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(12,),
+            candidate_sizes=(3,),
+            selectors=("top_ranked",),
+            objectives=("combined",),
+            seed=13,
+            optimal_max_items=3,
+            overwrite=True,
+        )
+    )
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert not (output_dir / "linked").exists()
+
+
 def test_run_experiment_rejects_overwrite_of_data_dir(tmp_path):
     output_dir = tmp_path / "fixture-copy"
     _copy_fixture_dataset(output_dir)
@@ -308,6 +336,18 @@ def test_select_evaluate_rejects_overwrite_of_candidate_directory(tmp_path):
         )
 
     assert candidates_path.exists()
+
+
+def test_generate_candidates_rejects_output_inside_data_dir(tmp_path):
+    data_dir = tmp_path / "fixture-copy"
+    _copy_fixture_dataset(data_dir)
+    queries_path = data_dir / "queries.jsonl"
+    original_queries = queries_path.read_text(encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="output path must not overwrite dataset inputs"):
+        generate_candidates(data_dir, queries_path, top_n=3)
+
+    assert queries_path.read_text(encoding="utf-8") == original_queries
 
 
 def _copy_fixture_dataset(output_dir: Path) -> None:

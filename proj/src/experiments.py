@@ -123,6 +123,7 @@ def run_experiment(config: ExperimentConfig) -> dict:
 
 
 def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
+    _validate_output_file_outside_input_dir(output_path, data_dir)
     dataset = load_dataset(data_dir)
     rows = [{**row, "top_n": top_n} for row in candidates_to_rows(retrieve_top_n(dataset, top_n))]
     write_jsonl(output_path, rows)
@@ -442,11 +443,23 @@ def _validate_config(config: ExperimentConfig) -> None:
 
 def _clear_output_dir(output_dir: Path) -> None:
     for path in output_dir.iterdir():
-        if path.is_dir():
+        if path.is_symlink():
+            path.unlink()
+        elif path.is_dir():
             _clear_output_dir(path)
             path.rmdir()
         else:
             path.unlink()
+
+
+def _validate_output_file_outside_input_dir(output_path: Path, input_dir: Path) -> None:
+    try:
+        resolved_output = output_path.resolve(strict=False)
+        resolved_input = input_dir.resolve()
+    except OSError as exc:
+        raise DataValidationError(f"cannot resolve output/input path: {output_path}") from exc
+    if resolved_output == resolved_input or resolved_input in resolved_output.parents:
+        raise DataValidationError(f"output path must not overwrite dataset inputs: {output_path}")
 
 
 def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple[Path, ...] = ()) -> None:
