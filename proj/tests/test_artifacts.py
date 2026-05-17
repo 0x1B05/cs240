@@ -33,6 +33,30 @@ def test_generate_artifacts_creates_report_tables(tmp_path):
     assert "runtime_units_mean" in (artifact_dir / "runtime_by_candidate_size.md").read_text(encoding="utf-8")
 
 
+def test_generate_artifacts_accepts_multi_lambda_combined_labels(tmp_path):
+    run_dir = tmp_path / "run"
+    artifact_dir = tmp_path / "artifacts"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(run_dir),
+            budgets=(18,),
+            candidate_sizes=(5,),
+            selectors=("top_ranked", "relevance_ratio", "random_seeded", "mmr", "budgeted_greedy"),
+            objectives=("coverage", "diversity", "combined"),
+            combined_lambdas=(0.5, 1.0),
+            seed=13,
+            optimal_max_items=5,
+        )
+    )
+
+    generate_artifacts(run_dir, artifact_dir)
+
+    comparison = (artifact_dir / "comparison_table.md").read_text(encoding="utf-8")
+    assert "submodular_combined_lambda_0.5" in comparison
+    assert "submodular_combined_lambda_1" in comparison
+
+
 def test_generate_artifacts_rejects_incompatible_metric_schema(tmp_path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
