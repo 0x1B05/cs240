@@ -123,6 +123,8 @@ def run_experiment(config: ExperimentConfig) -> dict:
 
 
 def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
+    if output_path.exists() and output_path.is_dir():
+        raise DataValidationError(f"output path is not a file: {output_path}")
     _validate_output_file_outside_input_dir(output_path, data_dir)
     dataset = load_dataset(data_dir)
     rows = [{**row, "top_n": top_n} for row in candidates_to_rows(retrieve_top_n(dataset, top_n))]
@@ -180,7 +182,7 @@ def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, to
             combined_lambdas=(1.0,),
             seed=seed,
             optimal_max_items=top_n,
-            overwrite=True,
+            overwrite=False,
         )
     )
     aggregate_rows = _read_aggregate_csv(output_dir / "aggregate_metrics.csv")

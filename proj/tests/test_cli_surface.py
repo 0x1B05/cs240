@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 from proj.src.cli import main
+from proj.src.experiments import ExperimentConfig, run_experiment
 
 
 def test_cli_help_lists_full_experiment_surface(capsys):
@@ -123,6 +124,27 @@ def test_cli_generate_candidates_writes_top_n_column(tmp_path, capsys):
     assert first["top_n"] == 3
 
 
+def test_cli_generate_candidates_rejects_directory_output_path(tmp_path, capsys):
+    output_path = tmp_path / "candidate-dir"
+    output_path.mkdir()
+
+    exit_code = main(
+        [
+            "generate-candidates",
+            "--data-dir",
+            "proj/data/fixtures",
+            "--output-path",
+            str(output_path),
+            "--top-n",
+            "3",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "output path is not a file" in captured.err
+
+
 def test_cli_select_evaluate_consumes_candidate_file(tmp_path, capsys):
     candidates_path = tmp_path / "candidates.jsonl"
     output_dir = tmp_path / "selected"
@@ -161,3 +183,36 @@ def test_cli_select_evaluate_consumes_candidate_file(tmp_path, capsys):
     assert exit_code == 0
     assert "selection/evaluation" in captured.out
     assert (output_dir / "per_query_metrics.jsonl").exists()
+
+
+def test_cli_generate_artifacts_rejects_file_output_dir(tmp_path, capsys):
+    run_dir = tmp_path / "run"
+    output_path = tmp_path / "artifacts.md"
+    output_path.write_text("collision\n", encoding="utf-8")
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(run_dir),
+            budgets=(18,),
+            candidate_sizes=(5,),
+            selectors=("top_ranked", "relevance_ratio", "random_seeded", "mmr", "budgeted_greedy"),
+            objectives=("coverage", "diversity", "combined"),
+            seed=13,
+            optimal_max_items=5,
+        )
+    )
+
+    exit_code = main(
+        [
+            "generate-artifacts",
+            "--run-dir",
+            str(run_dir),
+            "--output-dir",
+            str(output_path),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "output path is not a directory" in captured.err
+    assert output_path.read_text(encoding="utf-8") == "collision\n"

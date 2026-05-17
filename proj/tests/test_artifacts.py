@@ -164,6 +164,18 @@ def test_generate_artifacts_sorts_optimal_checks_by_numeric_budget_and_top_n(tmp
     assert row_80_2 < row_80_10 < row_160_2 < row_320_2
 
 
+def test_generate_artifacts_rejects_file_output_dir(tmp_path):
+    run_dir = tmp_path / "run"
+    artifact_path = tmp_path / "artifacts.md"
+    artifact_path.write_text("collision\n", encoding="utf-8")
+    _write_minimal_artifact_inputs(run_dir, [_optimal_row("budgeted_greedy", "combined", "1.0", 18, 5)])
+
+    with pytest.raises(ArtifactValidationError, match="output path is not a directory"):
+        generate_artifacts(run_dir, artifact_path)
+
+    assert artifact_path.read_text(encoding="utf-8") == "collision\n"
+
+
 def test_generate_artifacts_rejects_incompatible_metric_schema(tmp_path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
