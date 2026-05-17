@@ -378,6 +378,27 @@ def test_generate_candidates_rejects_output_inside_data_dir(tmp_path):
     assert queries_path.read_text(encoding="utf-8") == original_queries
 
 
+def test_run_experiment_labels_multiple_combined_lambdas(tmp_path):
+    output_dir = tmp_path / "lambda-run"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(18,),
+            candidate_sizes=(3,),
+            selectors=("budgeted_greedy",),
+            objectives=("combined",),
+            combined_lambdas=(0.5, 1.0),
+            seed=13,
+            optimal_max_items=3,
+        )
+    )
+
+    labels = {row["method_label"] for row in read_jsonl(output_dir / "selections.jsonl")}
+
+    assert labels == {"submodular_combined_lambda_0.5", "submodular_combined_lambda_1"}
+
+
 def _copy_fixture_dataset(output_dir: Path) -> None:
     output_dir.mkdir()
     for filename in ("queries.jsonl", "corpus.jsonl"):
@@ -449,6 +470,24 @@ def test_select_evaluate_rejects_float_candidate_integer_fields(tmp_path):
     candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
 
     with pytest.raises(DataValidationError, match="positive integer"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=tmp_path / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
+
+
+def test_select_evaluate_rejects_truncated_candidate_blocks(tmp_path):
+    candidates_path = tmp_path / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    rows = read_jsonl(candidates_path)
+    rows = [row for row in rows if not (row["query_id"] == "q1" and row["rank"] == 3)]
+    candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="fewer than top_n"):
         select_evaluate(
             data_dir=Path("proj/data/fixtures"),
             candidates_path=candidates_path,
