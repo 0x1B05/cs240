@@ -443,7 +443,7 @@ def _validate_config(config: ExperimentConfig) -> None:
         raise DataValidationError("selectors must not be empty")
     if not config.objectives:
         raise DataValidationError("objectives must not be empty")
-    if any(value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
+    if not config.combined_lambdas or any(value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
         raise DataValidationError("combined_lambdas must be nonnegative and unique")
     if not 0.0 <= config.mmr_lambda <= 1.0:
         raise DataValidationError("mmr_lambda must be in [0, 1]")

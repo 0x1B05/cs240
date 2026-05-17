@@ -127,12 +127,18 @@ def prepare_multihop_cache(
     else:
         raise DataValidationError(f"unsupported schema: {schema}")
 
-    query_rows, corpus_rows = _sample_prepared_rows(query_rows, corpus_rows, sample_size, seed, schema)
-    dataset = Dataset(
+    full_dataset = Dataset(
         queries=tuple(_parse_query(row) for row in query_rows),
         corpus=tuple(_parse_document(row) for row in corpus_rows),
     )
-    validate_dataset(dataset)
+    validate_dataset(full_dataset)
+    query_rows, corpus_rows = _sample_prepared_rows(query_rows, corpus_rows, sample_size, seed, schema)
+    validate_dataset(
+        Dataset(
+            queries=tuple(_parse_query(row) for row in query_rows),
+            corpus=tuple(_parse_document(row) for row in corpus_rows),
+        )
+    )
 
     if output_dir.exists() and overwrite:
         if output_dir.is_symlink():
