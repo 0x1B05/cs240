@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -20,6 +22,28 @@ def test_cli_help_lists_full_experiment_surface(capsys):
         "run-smoke",
     ]:
         assert command in captured.out
+
+
+def test_cli_run_smoke_default_data_dir_is_independent_of_cwd(tmp_path):
+    output_dir = tmp_path / "smoke"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "proj.src",
+            "run-smoke",
+            "--output-dir",
+            str(output_dir),
+        ],
+        check=False,
+        capture_output=True,
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[2])},
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert (output_dir / "metrics.json").exists()
 
 
 def test_cli_prepare_data_writes_processed_cache(tmp_path, capsys):

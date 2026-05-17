@@ -21,6 +21,10 @@ from .experiments import (
 )
 
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_FIXTURE_DIR = PACKAGE_ROOT / "data" / "fixtures"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="context-selection", description="Budgeted context selection experiments.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -74,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     artifacts.add_argument("--output-dir", type=Path, required=True)
 
     smoke = subparsers.add_parser("run-smoke", help="Run the deterministic fixture smoke experiment.")
-    smoke.add_argument("--data-dir", type=Path, default=Path("proj/data/fixtures"))
+    smoke.add_argument("--data-dir", type=Path, default=DEFAULT_FIXTURE_DIR)
     smoke.add_argument("--output-dir", type=Path, required=True)
     smoke.add_argument("--budget", type=int, default=DEFAULT_BUDGET)
     smoke.add_argument("--top-n", type=int, default=DEFAULT_TOP_N)

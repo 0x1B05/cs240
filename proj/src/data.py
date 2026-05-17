@@ -237,22 +237,36 @@ def _prepare_embedded_rows(raw_queries: Path) -> tuple[list[dict], list[dict]]:
     text_to_doc_ids: dict[str, list[str]] = {}
     raw_rows = _read_records(raw_queries)
     local_doc_ids_by_row: list[set[str]] = []
+    local_id_to_doc_id_by_row: list[dict[str, str]] = []
     local_text_to_doc_id_by_row: list[dict[str, str]] = []
     local_text_to_doc_ids_by_row: list[dict[str, list[str]]] = []
+    embedded_texts_by_id: dict[str, set[str]] = {}
+    for row in raw_rows:
+        for doc_like in _embedded_docs(row):
+            document = _normalize_doc_like(doc_like, allow_hash_id=True)
+            embedded_texts_by_id.setdefault(document["doc_id"], set()).add(document["text"])
+    conflicting_local_ids = {doc_id for doc_id, texts in embedded_texts_by_id.items() if len(texts) > 1}
 
     for row in raw_rows:
+        query_id = _first_text(row, ("query_id", "id"))
         local_doc_ids: set[str] = set()
+        local_id_to_doc_id: dict[str, str] = {}
         local_text_to_doc_id: dict[str, str] = {}
         local_text_to_doc_ids: dict[str, list[str]] = {}
         for doc_like in _embedded_docs(row):
             document = _normalize_doc_like(doc_like, allow_hash_id=True)
+            original_doc_id = document["doc_id"]
+            if original_doc_id in conflicting_local_ids:
+                document = {**document, "doc_id": _embedded_doc_id(query_id, original_doc_id)}
             _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
+            local_id_to_doc_id[original_doc_id] = document["doc_id"]
             local_doc_ids.add(document["doc_id"])
             local_text_to_doc_id.setdefault(document["text"], document["doc_id"])
             local_ids = local_text_to_doc_ids.setdefault(document["text"], [])
             if document["doc_id"] not in local_ids:
                 local_ids.append(document["doc_id"])
         local_doc_ids_by_row.append(local_doc_ids)
+        local_id_to_doc_id_by_row.append(local_id_to_doc_id)
         local_text_to_doc_id_by_row.append(local_text_to_doc_id)
         local_text_to_doc_ids_by_row.append(local_text_to_doc_ids)
 
@@ -264,6 +278,7 @@ def _prepare_embedded_rows(raw_queries: Path) -> tuple[list[dict], list[dict]]:
             row,
             corpus_by_id,
             text_to_doc_id,
+            local_id_to_doc_id=local_id_to_doc_id_by_row[index],
             local_text_to_doc_id=local_text_to_doc_id_by_row[index],
             local_text_to_doc_ids=local_text_to_doc_ids_by_row[index],
             text_to_doc_ids=text_to_doc_ids,
@@ -308,6 +323,8 @@ def _sample_prepared_rows(
 def _read_records(path: Path) -> list[dict]:
     if not path.exists():
         raise DataValidationError(f"missing input file: {path}")
+    if not path.is_file():
+        raise DataValidationError(f"input path is not a file: {path}")
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         raise DataValidationError(f"empty input file: {path}")
@@ -356,6 +373,7 @@ def _normalize_evidence_ids(
     corpus_by_id: dict[str, dict],
     text_to_doc_id: dict[str, str],
     *,
+    local_id_to_doc_id: dict[str, str] | None = None,
     local_text_to_doc_id: dict[str, str] | None = None,
     local_text_to_doc_ids: dict[str, list[str]] | None = None,
     text_to_doc_ids: dict[str, list[str]] | None = None,
@@ -374,12 +392,16 @@ def _normalize_evidence_ids(
                 evidence_id = _first_text(item, ("doc_id", "id"))
                 if _has_any_text(item, ("text", "passage", "contents")):
                     document = _normalize_doc_like(item, allow_hash_id=True)
+                    if local_id_to_doc_id and document["doc_id"] in local_id_to_doc_id:
+                        document = {**document, "doc_id": local_id_to_doc_id[document["doc_id"]]}
                     if not allow_materialize:
                         existing = corpus_by_id.get(document["doc_id"])
                         if existing is None or existing["text"] != document["text"]:
                             raise DataValidationError(f"missing evidence in corpus: {document['doc_id']}")
                     _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
                     evidence_ids.append(document["doc_id"])
+                elif local_id_to_doc_id and evidence_id in local_id_to_doc_id:
+                    evidence_ids.append(local_id_to_doc_id[evidence_id])
                 elif evidence_id in corpus_by_id:
                     evidence_ids.append(evidence_id)
                 else:
@@ -399,7 +421,9 @@ def _normalize_evidence_ids(
         elif isinstance(item, str) and item.strip():
             value = item.strip()
             normalized = _normalize_text(value)
-            if value in corpus_by_id:
+            if local_id_to_doc_id and value in local_id_to_doc_id:
+                evidence_ids.append(local_id_to_doc_id[value])
+            elif value in corpus_by_id:
                 evidence_ids.append(value)
             else:
                 doc_id = _resolve_text_evidence_id(normalized, text_to_doc_id, local_text_to_doc_id, local_text_to_doc_ids, text_to_doc_ids)
@@ -420,6 +444,10 @@ def _normalize_evidence_ids(
     if len(evidence_ids) != len(set(evidence_ids)):
         evidence_ids = list(dict.fromkeys(evidence_ids))
     return evidence_ids
+
+
+def _embedded_doc_id(query_id: str, doc_id: str) -> str:
+    return f"{query_id}::{doc_id}"
 
 
 def _looks_like_evidence_id(value: str) -> bool:
