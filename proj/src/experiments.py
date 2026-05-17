@@ -126,6 +126,8 @@ def run_experiment(config: ExperimentConfig) -> dict:
 
 
 def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
+    if output_path.is_symlink():
+        raise DataValidationError(f"output path is a symlink: {output_path}")
     if output_path.exists() and output_path.is_dir():
         raise DataValidationError(f"output path is not a file: {output_path}")
     _validate_output_file_outside_input_dir(output_path, data_dir)
@@ -471,6 +473,8 @@ def _validate_output_file_outside_input_dir(output_path: Path, input_dir: Path) 
 
 
 def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple[Path, ...] = ()) -> None:
+    if output_dir.is_symlink() and not overwrite:
+        raise DataValidationError(f"output path is a symlink: {output_dir}")
     if output_dir.exists() and not output_dir.is_dir():
         raise DataValidationError(f"output path is not a directory: {output_dir}")
     _validate_output_does_not_contain_inputs(output_dir, input_paths)
