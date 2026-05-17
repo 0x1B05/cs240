@@ -513,3 +513,61 @@ def test_prepare_multihop_cache_refuses_overwrite(tmp_path):
             seed=13,
             overwrite=False,
         )
+
+
+def test_prepare_multihop_cache_rejects_overwrite_of_raw_input_directory(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    raw_path = raw_dir / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where?",
+                "answer": "Somewhere",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "A valid evidence document."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="output directory must not contain raw input files"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=raw_dir,
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=True,
+        )
+
+    assert raw_path.exists()
+
+
+def test_prepare_split_cache_rejects_overwrite_of_raw_input_parent(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    raw_queries = raw_dir / "queries.jsonl"
+    raw_corpus = raw_dir / "corpus.jsonl"
+    raw_queries.write_text(
+        json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_ids": ["d1"]}) + "\n",
+        encoding="utf-8",
+    )
+    raw_corpus.write_text(json.dumps({"id": "d1", "passage": "first evidence"}) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="output directory must not contain raw input files"):
+        prepare_multihop_cache(
+            raw_queries=raw_queries,
+            raw_corpus=raw_corpus,
+            output_dir=tmp_path,
+            schema="split",
+            sample_size=None,
+            seed=13,
+            overwrite=True,
+        )
+
+    assert raw_queries.exists()
+    assert raw_corpus.exists()

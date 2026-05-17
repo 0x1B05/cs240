@@ -66,3 +66,19 @@ def test_build_features_similarity_is_independent_of_query_text():
     second = build_features("gamma gamma gamma", candidates)
 
     assert first.similarity == second.similarity
+
+
+def test_build_features_can_use_stable_reference_texts_across_candidate_prefixes():
+    candidates = [
+        Candidate(query_id="q", doc_id="d1", rank=1, score=1.0, text="alpha alpha rare", token_cost=3),
+        Candidate(query_id="q", doc_id="d2", rank=2, score=0.9, text="alpha beta", token_cost=2),
+        Candidate(query_id="q", doc_id="d3", rank=3, score=0.8, text="unrelated unrelated", token_cost=2),
+    ]
+    reference_texts = [candidate.text for candidate in candidates]
+
+    prefix = build_features("alpha", candidates[:2], reference_texts=reference_texts)
+    full = build_features("alpha", candidates, reference_texts=reference_texts)
+
+    assert prefix.relevance == full.relevance[:2]
+    assert prefix.similarity[0] == full.similarity[0][:2]
+    assert prefix.similarity[1] == full.similarity[1][:2]

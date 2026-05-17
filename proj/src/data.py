@@ -116,6 +116,8 @@ def prepare_multihop_cache(
         raise DataValidationError(f"output path is not a directory: {output_dir}")
     if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
         raise DataValidationError(f"output directory exists; pass overwrite to replace it: {output_dir}")
+    if output_dir.exists() and overwrite:
+        _validate_output_does_not_contain_inputs(output_dir, raw_queries, raw_corpus)
 
     if schema == "split":
         query_rows, corpus_rows = _prepare_split_rows(raw_queries, raw_corpus)
@@ -148,6 +150,21 @@ def prepare_multihop_cache(
     }
     (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return manifest
+
+
+def _validate_output_does_not_contain_inputs(output_dir: Path, raw_queries: Path, raw_corpus: Path | None) -> None:
+    try:
+        resolved_output = output_dir.resolve()
+    except OSError as exc:
+        raise DataValidationError(f"cannot resolve output directory: {output_dir}") from exc
+    raw_paths = [raw_queries, *(path for path in (raw_corpus,) if path is not None)]
+    for raw_path in raw_paths:
+        try:
+            resolved_raw = raw_path.resolve(strict=False)
+        except OSError as exc:
+            raise DataValidationError(f"cannot resolve raw input file: {raw_path}") from exc
+        if resolved_raw == resolved_output or resolved_output in resolved_raw.parents:
+            raise DataValidationError(f"output directory must not contain raw input files: {output_dir}")
 
 
 def load_dataset(data_dir: Path) -> Dataset:

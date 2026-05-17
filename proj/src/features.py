@@ -16,7 +16,7 @@ class FeatureSet:
     similarity: tuple[tuple[float, ...], ...]
 
 
-def build_features(query_text: str, candidates: list[Candidate]) -> FeatureSet:
+def build_features(query_text: str, candidates: list[Candidate], *, reference_texts: list[str] | None = None) -> FeatureSet:
     if not candidates:
         raise DataValidationError("candidate list must not be empty")
     query_ids = {candidate.query_id for candidate in candidates}
@@ -24,8 +24,9 @@ def build_features(query_text: str, candidates: list[Candidate]) -> FeatureSet:
         raise DataValidationError("candidate list contains multiple query ids")
 
     doc_texts = [candidate.text for candidate in candidates]
-    query_vector = tfidf_transform([query_text], reference_texts=doc_texts)[0]
-    doc_vectors = tfidf_transform(doc_texts, reference_texts=doc_texts)
+    references = reference_texts if reference_texts is not None else doc_texts
+    query_vector = tfidf_transform([query_text], reference_texts=references)[0]
+    doc_vectors = tfidf_transform(doc_texts, reference_texts=references)
 
     relevance = tuple(max(0.0, cosine(query_vector, vector)) for vector in doc_vectors)
     similarity_rows: list[tuple[float, ...]] = []
