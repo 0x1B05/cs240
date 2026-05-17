@@ -46,3 +46,5 @@ def test_run_smoke_writes_metrics(tmp_path):
     assert (output_dir / "summary.md").exists()
     loaded = json.loads((output_dir / "metrics.json").read_text(encoding="utf-8"))
     assert loaded["config"]["budget"] == 18
+    assert loaded["runtime_seconds"] > 0.0
+    assert metrics["runtime_seconds"] == loaded["runtime_seconds"]

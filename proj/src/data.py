@@ -179,7 +179,6 @@ def _validate_output_does_not_contain_inputs(output_dir: Path, raw_queries: Path
             protected_root = resolved_raw
         if (
             resolved_output == resolved_raw
-            or resolved_output == protected_root
             or protected_root in resolved_output.parents
             or resolved_output in resolved_raw.parents
         ):

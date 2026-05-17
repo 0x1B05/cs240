@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import random
 from statistics import mean, pstdev
+import time
 
 from .data import (
     Candidate,
@@ -174,6 +175,7 @@ def select_evaluate(
 
 
 def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, top_n: int = DEFAULT_TOP_N, seed: int = 13) -> dict:
+    started_at = time.perf_counter()
     summary = run_experiment(
         ExperimentConfig(
             data_dir=str(data_dir),
@@ -190,6 +192,7 @@ def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, to
             overwrite=False,
         )
     )
+    runtime_seconds = time.perf_counter() - started_at
     aggregate_rows = _read_aggregate_csv(output_dir / "aggregate_metrics.csv")
     aggregate = {}
     for row in aggregate_rows:
@@ -200,7 +203,7 @@ def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, to
         }
     metrics = {
         "config": {"data_dir": str(data_dir), "budget": budget, "top_n": top_n, "seed": seed},
-        "runtime_seconds": 0.0,
+        "runtime_seconds": runtime_seconds,
         "aggregate": aggregate,
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -504,7 +507,6 @@ def _validate_output_does_not_contain_inputs(output_dir: Path, input_paths: tupl
             protected_root = resolved_input
         if (
             resolved_output == resolved_input
-            or resolved_output == protected_root
             or protected_root in resolved_output.parents
             or resolved_output in resolved_input.parents
         ):
