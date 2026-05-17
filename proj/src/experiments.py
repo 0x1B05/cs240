@@ -146,7 +146,7 @@ def select_evaluate(
     seed: int,
     overwrite: bool = False,
     selectors: tuple[str, ...] = DEFAULT_SELECTORS,
-    objectives: tuple[str, ...] = ("combined",),
+    objectives: tuple[str, ...] = DEFAULT_OBJECTIVES,
     combined_lambdas: tuple[float, ...] = (1.0,),
     mmr_lambda: float = 0.7,
     optimal_max_items: int | None = None,
@@ -446,7 +446,9 @@ def _validate_config(config: ExperimentConfig) -> None:
         raise DataValidationError("selectors must not be empty")
     if not config.objectives:
         raise DataValidationError("objectives must not be empty")
-    if not config.combined_lambdas or any(value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
+    if any(value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
+        raise DataValidationError("combined_lambdas must be nonnegative and unique")
+    if "combined" in config.objectives and not config.combined_lambdas:
         raise DataValidationError("combined_lambdas must be nonnegative and unique")
     if not 0.0 <= config.mmr_lambda <= 1.0:
         raise DataValidationError("mmr_lambda must be in [0, 1]")
