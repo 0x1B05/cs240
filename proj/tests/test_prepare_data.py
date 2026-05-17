@@ -129,6 +129,39 @@ def test_prepare_embedded_accepts_id_only_evidence_objects(tmp_path):
     assert read_jsonl(tmp_path / "processed" / "queries.jsonl")[0]["evidence_ids"] == ["d1"]
 
 
+def test_prepare_embedded_resolves_one_token_text_evidence(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Which planet?",
+                "answer": "Mercury",
+                "evidence_list": ["Mercury"],
+                "contexts": [{"id": "d1", "text": "Closest planet"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=tmp_path / "processed",
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+
+    query = read_jsonl(tmp_path / "processed" / "queries.jsonl")[0]
+    corpus_text_by_id = {row["doc_id"]: row["text"] for row in read_jsonl(tmp_path / "processed" / "corpus.jsonl")}
+    materialized_id = next(doc_id for doc_id, text in corpus_text_by_id.items() if text == "Mercury")
+
+    assert query["evidence_ids"] == [materialized_id]
+
+
 def test_prepare_embedded_rejects_ambiguous_global_text_only_evidence(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     duplicate_text = "shared supporting passage"

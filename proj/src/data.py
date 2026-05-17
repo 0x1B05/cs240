@@ -345,7 +345,8 @@ def _normalize_evidence_ids(
     text_to_doc_ids: dict[str, list[str]] | None = None,
     allow_materialize: bool,
 ) -> list[str]:
-    raw = row.get("evidence_ids", row.get("evidence_list"))
+    evidence_key = "evidence_ids" if "evidence_ids" in row else "evidence_list"
+    raw = row.get(evidence_key)
     if not isinstance(raw, list) or not raw:
         query_id = row.get("query_id", row.get("id", "<unknown>"))
         raise DataValidationError(f"query {query_id} must include nonempty evidence_ids")
@@ -388,11 +389,11 @@ def _normalize_evidence_ids(
                 doc_id = _resolve_text_evidence_id(normalized, text_to_doc_id, local_text_to_doc_id, local_text_to_doc_ids, text_to_doc_ids)
                 if doc_id is not None:
                     evidence_ids.append(doc_id)
-                elif " " in normalized and allow_materialize:
+                elif allow_materialize and (evidence_key == "evidence_list" or " " in normalized):
                     document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
                     _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
                     evidence_ids.append(document["doc_id"])
-                elif " " in normalized:
+                elif evidence_key == "evidence_list" or " " in normalized:
                     raise DataValidationError(f"missing evidence in corpus: {normalized}")
                 else:
                     evidence_ids.append(value)

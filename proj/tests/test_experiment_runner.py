@@ -132,6 +132,17 @@ def test_run_experiment_rejects_file_output_path(tmp_path):
         run_experiment(ExperimentConfig(data_dir="proj/data/fixtures", output_dir=str(output_path)))
 
 
+def test_run_experiment_rejects_overwrite_of_data_dir(tmp_path):
+    output_dir = tmp_path / "fixture-copy"
+    _copy_fixture_dataset(output_dir)
+
+    with pytest.raises(DataValidationError, match="output directory must not contain experiment inputs"):
+        run_experiment(ExperimentConfig(data_dir=str(output_dir), output_dir=str(output_dir), overwrite=True))
+
+    assert (output_dir / "queries.jsonl").exists()
+    assert (output_dir / "corpus.jsonl").exists()
+
+
 def test_run_experiment_reproducible_selection_and_metric_files(tmp_path):
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -278,6 +289,32 @@ def test_select_evaluate_consumes_saved_candidate_file(tmp_path):
     assert summary["queries"] == 3
     assert {row["top_n"] for row in read_jsonl(output_dir / "candidates.jsonl")} == {3}
     assert (output_dir / "per_query_metrics.jsonl").exists()
+
+
+def test_select_evaluate_rejects_overwrite_of_candidate_directory(tmp_path):
+    candidates_dir = tmp_path / "staged"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+
+    with pytest.raises(DataValidationError, match="output directory must not contain experiment inputs"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=candidates_dir,
+            budget=18,
+            seed=13,
+            overwrite=True,
+        )
+
+    assert candidates_path.exists()
+
+
+def _copy_fixture_dataset(output_dir: Path) -> None:
+    output_dir.mkdir()
+    for filename in ("queries.jsonl", "corpus.jsonl"):
+        source = Path("proj/data/fixtures") / filename
+        (output_dir / filename).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def test_select_evaluate_rejects_malformed_candidate_file(tmp_path):

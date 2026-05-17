@@ -119,7 +119,7 @@ def parse_name_grid(value: str, *, allowed: tuple[str, ...], label: str) -> tupl
 def run_experiment(config: ExperimentConfig) -> dict:
     dataset = _sample_dataset(load_dataset(Path(config.data_dir)), config.sample_size, config.sample_seed)
     candidates_by_top_n = {top_n: retrieve_top_n(dataset, top_n) for top_n in config.candidate_sizes}
-    return _run_with_candidates(dataset, candidates_by_top_n, config)
+    return _run_with_candidates(dataset, candidates_by_top_n, config, input_paths=(Path(config.data_dir),))
 
 
 def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
@@ -161,6 +161,7 @@ def select_evaluate(
             optimal_max_items=optimal_max_items if optimal_max_items is not None else ExperimentConfig.optimal_max_items,
             overwrite=overwrite,
         ),
+        input_paths=(data_dir, candidates_path),
     )
 
 
@@ -307,10 +308,15 @@ def _canonical_token_cost(text: str) -> int:
     return token_cost(text)
 
 
-def _run_with_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[str, list[Candidate]]], config: ExperimentConfig) -> dict:
+def _run_with_candidates(
+    dataset: Dataset,
+    candidates_by_top_n: dict[int, dict[str, list[Candidate]]],
+    config: ExperimentConfig,
+    input_paths: tuple[Path, ...] = (),
+) -> dict:
     _validate_config(config)
     output_dir = Path(config.output_dir)
-    _prepare_output_dir(output_dir, overwrite=config.overwrite)
+    _prepare_output_dir(output_dir, overwrite=config.overwrite, input_paths=input_paths)
 
     query_by_id = {query.query_id: query for query in dataset.queries}
     feature_reference_texts = [doc.text for doc in dataset.corpus]
@@ -443,14 +449,29 @@ def _clear_output_dir(output_dir: Path) -> None:
             path.unlink()
 
 
-def _prepare_output_dir(output_dir: Path, *, overwrite: bool) -> None:
+def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple[Path, ...] = ()) -> None:
     if output_dir.exists() and not output_dir.is_dir():
         raise DataValidationError(f"output path is not a directory: {output_dir}")
     if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
         raise DataValidationError(f"output directory exists; pass --overwrite to replace it: {output_dir}")
     if output_dir.exists() and overwrite:
+        _validate_output_does_not_contain_inputs(output_dir, input_paths)
         _clear_output_dir(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _validate_output_does_not_contain_inputs(output_dir: Path, input_paths: tuple[Path, ...]) -> None:
+    try:
+        resolved_output = output_dir.resolve()
+    except OSError as exc:
+        raise DataValidationError(f"cannot resolve output directory: {output_dir}") from exc
+    for input_path in input_paths:
+        try:
+            resolved_input = input_path.resolve(strict=False)
+        except OSError as exc:
+            raise DataValidationError(f"cannot resolve experiment input path: {input_path}") from exc
+        if resolved_input == resolved_output or resolved_output in resolved_input.parents:
+            raise DataValidationError(f"output directory must not contain experiment inputs: {output_dir}")
 
 
 def _candidate_rows(candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) -> list[dict]:
