@@ -123,6 +123,27 @@ def test_run_experiment_allows_zero_combined_lambda(tmp_path):
     assert (output_dir / "aggregate_metrics.csv").exists()
 
 
+def test_run_experiment_rejects_empty_combined_lambdas_before_writing(tmp_path):
+    output_dir = tmp_path / "empty-lambda-run"
+
+    with pytest.raises(DataValidationError, match="combined_lambdas"):
+        run_experiment(
+            ExperimentConfig(
+                data_dir="proj/data/fixtures",
+                output_dir=str(output_dir),
+                budgets=(18,),
+                candidate_sizes=(3,),
+                selectors=("budgeted_greedy",),
+                objectives=("combined",),
+                combined_lambdas=(),
+                seed=13,
+                optimal_max_items=3,
+            )
+        )
+
+    assert not output_dir.exists()
+
+
 def test_runtime_units_reflect_selector_work(tmp_path):
     output_dir = tmp_path / "runtime-run"
     run_experiment(

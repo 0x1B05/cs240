@@ -395,6 +395,32 @@ def test_prepare_split_multihop_cache_samples_queries_and_keeps_corpus(tmp_path)
     assert len(read_jsonl(output_dir / "corpus.jsonl")) == 4
 
 
+def test_prepare_split_validates_unsampled_raw_queries(tmp_path):
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
+    raw_queries.write_text(
+        "\n".join(
+            [
+                json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_ids": ["d1"]}),
+                json.dumps({"id": "q2", "question": "second", "answer": "a2", "evidence_ids": ["missing"]}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    raw_corpus.write_text(json.dumps({"id": "d1", "passage": "first evidence"}) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="missing evidence"):
+        prepare_multihop_cache(
+            raw_queries=raw_queries,
+            raw_corpus=raw_corpus,
+            output_dir=tmp_path / "processed",
+            schema="split",
+            sample_size=1,
+            seed=1,
+            overwrite=False,
+        )
+
+
 def test_prepare_split_accepts_id_only_evidence_objects(tmp_path):
     raw_queries, raw_corpus = _split_raw_paths(tmp_path)
     raw_queries.write_text(
