@@ -246,6 +246,9 @@ def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, lis
             ranks = [candidate.rank for candidate in candidates]
             if ranks != list(range(1, len(candidates) + 1)):
                 raise DataValidationError(f"candidate ranks must be contiguous for query {query_id}, top_n={top_n}")
+            expected_count = min(top_n, len(doc_ids))
+            if len(candidates) < expected_count:
+                raise DataValidationError(f"candidate file has fewer than top_n rows for query {query_id}, top_n={top_n}")
             if len(candidates) > top_n:
                 raise DataValidationError(f"candidate file has more than top_n rows for query {query_id}, top_n={top_n}")
             seen_docs = [candidate.doc_id for candidate in candidates]
@@ -515,9 +518,15 @@ def _method_specs(config: ExperimentConfig):
             for objective in config.objectives:
                 lambda_values = config.combined_lambdas if objective == "combined" else (BASELINE_LAMBDA,)
                 for lambda_value in lambda_values:
-                    yield selector, objective, lambda_value, f"submodular_{objective}"
+                    yield selector, objective, lambda_value, _submodular_label(objective, lambda_value, len(lambda_values))
         else:
             yield selector, BASELINE_OBJECTIVE, BASELINE_LAMBDA, selector
+
+
+def _submodular_label(objective: str, lambda_value: float, lambda_count: int) -> str:
+    if objective == "combined" and lambda_count > 1:
+        return f"submodular_combined_lambda_{lambda_value:g}"
+    return f"submodular_{objective}"
 
 
 def _run_selector(
