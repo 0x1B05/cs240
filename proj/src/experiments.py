@@ -313,12 +313,17 @@ def _run_with_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[s
     _prepare_output_dir(output_dir, overwrite=config.overwrite)
 
     query_by_id = {query.query_id: query for query in dataset.queries}
+    feature_reference_texts = [doc.text for doc in dataset.corpus]
     features_by_key: dict[tuple[int, str], FeatureSet] = {}
     for top_n, candidates_by_query in candidates_by_top_n.items():
         for query in dataset.queries:
             if query.query_id not in candidates_by_query:
                 raise DataValidationError(f"missing candidates for query {query.query_id}, top_n={top_n}")
-            features_by_key[(top_n, query.query_id)] = build_features(query.query, candidates_by_query[query.query_id])
+            features_by_key[(top_n, query.query_id)] = build_features(
+                query.query,
+                candidates_by_query[query.query_id],
+                reference_texts=feature_reference_texts,
+            )
 
     candidate_rows = _candidate_rows(candidates_by_top_n)
     selection_rows: list[dict] = []

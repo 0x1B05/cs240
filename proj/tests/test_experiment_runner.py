@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from proj.src.data import DataValidationError, read_jsonl
+import proj.src.experiments as experiments_module
+from proj.src.data import DataValidationError, load_dataset, read_jsonl
 from proj.src.experiments import (
     ExperimentConfig,
     generate_candidates,
@@ -171,6 +172,34 @@ def test_run_experiment_reports_executed_and_skipped_optimal_checks(tmp_path):
     text = (output_dir / "optimal_checks.csv").read_text(encoding="utf-8")
     assert "executed" in text
     assert "too_many_items" in text
+
+
+def test_run_experiment_builds_features_against_full_corpus_reference(tmp_path, monkeypatch):
+    expected_reference = tuple(doc.text for doc in load_dataset(Path("proj/data/fixtures")).corpus)
+    seen_references = []
+    original_build_features = experiments_module.build_features
+
+    def recording_build_features(query_text, candidates, *, reference_texts=None):
+        seen_references.append(tuple(reference_texts) if reference_texts is not None else None)
+        return original_build_features(query_text, candidates, reference_texts=reference_texts)
+
+    monkeypatch.setattr(experiments_module, "build_features", recording_build_features)
+    output_dir = tmp_path / "main-run"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(12,),
+            candidate_sizes=(3, 5),
+            selectors=("top_ranked",),
+            objectives=("combined",),
+            seed=13,
+            optimal_max_items=3,
+        )
+    )
+
+    assert seen_references
+    assert set(seen_references) == {expected_reference}
 
 
 def test_run_experiment_sample_size_controls_query_subset(tmp_path):
