@@ -112,6 +112,42 @@ def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
         )
 
 
+def test_prepare_embedded_rejects_directory_raw_queries(tmp_path):
+    raw_dir = tmp_path / "raw-dir"
+    raw_dir.mkdir()
+
+    with pytest.raises(DataValidationError, match="input path is not a file"):
+        prepare_multihop_cache(
+            raw_queries=raw_dir,
+            raw_corpus=None,
+            output_dir=tmp_path / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
+def test_prepare_split_rejects_directory_raw_corpus(tmp_path):
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
+    raw_queries.write_text(
+        json.dumps({"id": "q1", "question": "first", "answer": "a1", "evidence_ids": ["d1"]}) + "\n",
+        encoding="utf-8",
+    )
+    raw_corpus.mkdir()
+
+    with pytest.raises(DataValidationError, match="input path is not a file"):
+        prepare_multihop_cache(
+            raw_queries=raw_queries,
+            raw_corpus=raw_corpus,
+            output_dir=tmp_path / "processed",
+            schema="split",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_prepare_embedded_rejects_symlinked_output_dir_without_overwrite(tmp_path):
     raw_path = _raw_path(tmp_path)
     raw_path.write_text(
@@ -275,6 +311,55 @@ def test_prepare_embedded_rejects_unknown_string_evidence_id(tmp_path):
             seed=13,
             overwrite=False,
         )
+
+
+def test_prepare_embedded_namespaces_reused_local_context_ids(tmp_path):
+    raw_path = _raw_path(tmp_path)
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "q1",
+                        "question": "first",
+                        "answer": "a1",
+                        "evidence_list": [{"id": "d1"}],
+                        "contexts": [{"id": "d1", "text": "first local context"}],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "q2",
+                        "question": "second",
+                        "answer": "a2",
+                        "evidence_list": [{"id": "d1"}],
+                        "contexts": [{"id": "d1", "text": "second local context"}],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=tmp_path / "processed",
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+
+    queries = {row["query_id"]: row for row in read_jsonl(tmp_path / "processed" / "queries.jsonl")}
+    corpus_text_by_id = {row["doc_id"]: row["text"] for row in read_jsonl(tmp_path / "processed" / "corpus.jsonl")}
+    q1_evidence = queries["q1"]["evidence_ids"][0]
+    q2_evidence = queries["q2"]["evidence_ids"][0]
+
+    assert q1_evidence != q2_evidence
+    assert corpus_text_by_id[q1_evidence] == "first local context"
+    assert corpus_text_by_id[q2_evidence] == "second local context"
 
 
 def test_prepare_embedded_rejects_ambiguous_global_text_only_evidence(tmp_path):
