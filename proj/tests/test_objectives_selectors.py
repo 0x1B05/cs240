@@ -130,6 +130,20 @@ def test_mmr_returns_empty_when_initial_best_score_is_nonpositive():
     assert result.total_cost == 0
 
 
+def test_mmr_ties_by_ascending_doc_id():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("b", "a"),
+        costs=(1, 1),
+        relevance=(1.0, 1.0),
+        similarity=((1.0, 0.0), (0.0, 1.0)),
+    )
+
+    result = mmr(features, budget=1, lambda_value=1.0)
+
+    assert result.indices == (1,)
+
+
 def test_random_requires_seed_and_exhaustive_threshold():
     features = _fixture_features()
 

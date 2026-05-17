@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
                 candidate_sizes=parse_grid(args.candidate_sizes, item_type=int, label="candidate_sizes"),
                 selectors=parse_name_grid(args.selectors, allowed=DEFAULT_SELECTORS, label="selectors"),
                 objectives=parse_name_grid(args.objectives, allowed=DEFAULT_OBJECTIVES, label="objectives"),
-                combined_lambdas=parse_grid(args.combined_lambdas, item_type=float, label="combined_lambdas"),
+                combined_lambdas=parse_grid(args.combined_lambdas, item_type=float, label="combined_lambdas", allow_zero=True),
                 mmr_lambda=args.mmr_lambda,
                 seed=args.seed,
                 sample_size=args.sample_size,
