@@ -94,10 +94,25 @@ def test_mmr_stops_when_best_remaining_score_is_nonpositive():
         similarity=((1.0, 1.0, 1.0), (1.0, 1.0, 1.0), (1.0, 1.0, 1.0)),
     )
 
-    result = mmr(features, budget=3, lambda_value=0.0)
+    result = mmr(features, budget=3, lambda_value=0.5)
 
     assert len(result.indices) == 1
     assert result.total_cost == 1
+
+
+def test_mmr_returns_empty_when_initial_best_score_is_nonpositive():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("a", "b", "c"),
+        costs=(1, 1, 1),
+        relevance=(0.0, 0.0, 0.0),
+        similarity=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+    )
+
+    result = mmr(features, budget=3, lambda_value=0.7)
+
+    assert result.indices == ()
+    assert result.total_cost == 0
 
 
 def test_random_requires_seed_and_exhaustive_threshold():
