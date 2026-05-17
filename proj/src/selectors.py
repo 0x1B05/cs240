@@ -93,7 +93,7 @@ def mmr(features: FeatureSet, budget: int, lambda_value: float = 0.7) -> Selecti
             return (mmr_score / features.costs[item], features.doc_ids[item])
 
         best = max(feasible, key=score)
-        if selected and score(best)[0] <= 0:
+        if score(best)[0] <= 0:
             break
         selected.append(best)
         total_cost += features.costs[best]
