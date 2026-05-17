@@ -404,6 +404,8 @@ def _normalize_evidence_ids(
                 doc_id = _resolve_text_evidence_id(normalized, text_to_doc_id, local_text_to_doc_id, local_text_to_doc_ids, text_to_doc_ids)
                 if doc_id is not None:
                     evidence_ids.append(doc_id)
+                elif evidence_key == "evidence_list" and _looks_like_evidence_id(value):
+                    raise DataValidationError(f"missing evidence in corpus: {value}")
                 elif allow_materialize and (evidence_key == "evidence_list" or " " in normalized):
                     document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
                     _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
@@ -417,6 +419,14 @@ def _normalize_evidence_ids(
     if len(evidence_ids) != len(set(evidence_ids)):
         evidence_ids = list(dict.fromkeys(evidence_ids))
     return evidence_ids
+
+
+def _looks_like_evidence_id(value: str) -> bool:
+    if " " in value.strip():
+        return False
+    return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9]*[-_][A-Za-z0-9_-]+", value)) or bool(
+        re.fullmatch(r"[A-Za-z0-9_-]*\d[A-Za-z0-9_-]*", value)
+    )
 
 
 def _resolve_text_evidence_id(

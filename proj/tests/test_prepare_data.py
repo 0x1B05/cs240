@@ -249,6 +249,34 @@ def test_prepare_embedded_resolves_one_token_text_evidence(tmp_path):
     assert query["evidence_ids"] == [materialized_id]
 
 
+def test_prepare_embedded_rejects_unknown_string_evidence_id(tmp_path):
+    raw_path = _raw_path(tmp_path)
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where is the Louvre?",
+                "answer": "Paris",
+                "evidence_list": ["ctx-missing"],
+                "contexts": [{"id": "ctx-present", "text": "The Louvre is in Paris."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="missing evidence in corpus: ctx-missing"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=tmp_path / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_prepare_embedded_rejects_ambiguous_global_text_only_evidence(tmp_path):
     raw_path = _raw_path(tmp_path)
     duplicate_text = "shared supporting passage"

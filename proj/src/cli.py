@@ -44,6 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
     select.add_argument("--candidates-path", type=Path, required=True)
     select.add_argument("--output-dir", type=Path, required=True)
     select.add_argument("--budget", type=int, default=DEFAULT_BUDGET)
+    select.add_argument("--selectors", default=",".join(DEFAULT_SELECTORS))
+    select.add_argument("--objectives", default=",".join(DEFAULT_OBJECTIVES))
+    select.add_argument("--combined-lambdas", default="1.0")
+    select.add_argument("--mmr-lambda", type=float, default=0.7)
     select.add_argument("--seed", type=int, default=13)
     select.add_argument("--optimal-max-items", type=int)
     select.add_argument("--overwrite", action="store_true")
@@ -109,6 +113,10 @@ def main(argv: list[str] | None = None) -> int:
                 args.budget,
                 args.seed,
                 overwrite=args.overwrite,
+                selectors=parse_name_grid(args.selectors, allowed=DEFAULT_SELECTORS, label="selectors"),
+                objectives=parse_name_grid(args.objectives, allowed=DEFAULT_OBJECTIVES, label="objectives"),
+                combined_lambdas=parse_grid(args.combined_lambdas, item_type=float, label="combined_lambdas", allow_zero=True),
+                mmr_lambda=args.mmr_lambda,
                 optimal_max_items=args.optimal_max_items,
             )
             print(f"wrote selection/evaluation outputs to {args.output_dir}")
