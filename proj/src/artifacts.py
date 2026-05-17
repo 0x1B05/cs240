@@ -35,6 +35,8 @@ def generate_artifacts(run_dir: Path, output_dir: Path) -> list[Path]:
     _validate_required_methods(aggregate_rows)
     _validate_submodular_objectives(aggregate_rows)
 
+    if output_dir.exists() and not output_dir.is_dir():
+        raise ArtifactValidationError(f"output path is not a directory: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs = [
         output_dir / "comparison_table.md",

@@ -10,6 +10,7 @@ from proj.src.experiments import (
     generate_candidates,
     parse_grid,
     run_experiment,
+    run_smoke,
     select_evaluate,
 )
 
@@ -130,6 +131,18 @@ def test_run_experiment_rejects_file_output_path(tmp_path):
 
     with pytest.raises(DataValidationError, match="output path is not a directory"):
         run_experiment(ExperimentConfig(data_dir="proj/data/fixtures", output_dir=str(output_path)))
+
+
+def test_run_smoke_refuses_existing_nonempty_output_dir(tmp_path):
+    output_dir = tmp_path / "smoke-run"
+    output_dir.mkdir()
+    marker = output_dir / "keep.txt"
+    marker.write_text("do not delete\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="overwrite"):
+        run_smoke(Path("proj/data/fixtures"), output_dir)
+
+    assert marker.read_text(encoding="utf-8") == "do not delete\n"
 
 
 def test_run_experiment_overwrite_unlinks_symlink_without_following_target(tmp_path):
@@ -376,6 +389,14 @@ def test_generate_candidates_rejects_output_inside_data_dir(tmp_path):
         generate_candidates(data_dir, queries_path, top_n=3)
 
     assert queries_path.read_text(encoding="utf-8") == original_queries
+
+
+def test_generate_candidates_rejects_directory_output_path(tmp_path):
+    output_path = tmp_path / "candidate-dir"
+    output_path.mkdir()
+
+    with pytest.raises(DataValidationError, match="output path is not a file"):
+        generate_candidates(Path("proj/data/fixtures"), output_path, top_n=3)
 
 
 def test_run_experiment_labels_multiple_combined_lambdas(tmp_path):
