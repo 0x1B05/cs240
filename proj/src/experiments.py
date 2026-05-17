@@ -152,7 +152,8 @@ def select_evaluate(
     optimal_max_items: int | None = None,
 ) -> dict:
     dataset = load_dataset(data_dir)
-    candidates_by_top_n = load_candidate_file(candidates_path, dataset, require_all_queries=False)
+    require_all_queries = not _candidate_file_matches_sample_manifest(candidates_path, dataset)
+    candidates_by_top_n = load_candidate_file(candidates_path, dataset, require_all_queries=require_all_queries)
     dataset = _subset_dataset_for_candidates(dataset, candidates_by_top_n)
     candidate_sizes = tuple(sorted(candidates_by_top_n))
     return _run_with_candidates(
@@ -267,6 +268,28 @@ def load_candidate_file(path: Path, dataset: Dataset, require_all_queries: bool 
                 raise DataValidationError(f"candidate file contains duplicate doc ids for query {query_id}, top_n={top_n}")
 
     return {top_n: {query_id: list(candidates) for query_id, candidates in sorted(by_query.items())} for top_n, by_query in sorted(grouped.items())}
+
+
+def _candidate_file_matches_sample_manifest(candidates_path: Path, dataset: Dataset) -> bool:
+    manifest_path = candidates_path.parent / "sample_manifest.jsonl"
+    if not manifest_path.exists():
+        return False
+    rows = read_jsonl(candidates_path)
+    candidate_query_ids = {_candidate_text(row, "query_id", row_number) for row_number, row in enumerate(rows, 1)}
+    manifest_rows = read_jsonl(manifest_path)
+    manifest_query_ids = {_manifest_query_id(row, row_number) for row_number, row in enumerate(manifest_rows, 1)}
+    dataset_query_ids = {query.query_id for query in dataset.queries}
+    if not manifest_query_ids <= dataset_query_ids:
+        unknown = sorted(manifest_query_ids - dataset_query_ids)
+        raise DataValidationError(f"sample manifest references unknown query_id: {unknown}")
+    return candidate_query_ids == manifest_query_ids and manifest_query_ids != dataset_query_ids
+
+
+def _manifest_query_id(row: dict, row_number: int) -> str:
+    value = row.get("query_id")
+    if not isinstance(value, str) or not value.strip():
+        raise DataValidationError(f"sample manifest query_id must be a nonempty string at row {row_number}")
+    return value.strip()
 
 
 def _subset_dataset_for_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) -> Dataset:
@@ -511,20 +534,21 @@ def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple
 def _validate_output_does_not_contain_inputs(output_dir: Path, input_paths: tuple[Path, ...]) -> None:
     try:
         resolved_output = output_dir.resolve(strict=False)
+        lexical_output = output_dir.absolute()
     except OSError as exc:
         raise DataValidationError(f"cannot resolve output directory: {output_dir}") from exc
     for input_path in input_paths:
         try:
             resolved_input = input_path.resolve(strict=False)
+            lexical_input = input_path.absolute()
         except OSError as exc:
             raise DataValidationError(f"cannot resolve experiment input path: {input_path}") from exc
-        protected_root = resolved_input if input_path.is_dir() else resolved_input
-        if (
-            resolved_output == resolved_input
-            or protected_root in resolved_output.parents
-            or resolved_output in resolved_input.parents
-        ):
+        if _paths_overlap(resolved_output, resolved_input) or _paths_overlap(lexical_output, lexical_input):
             raise DataValidationError(f"output directory must not contain experiment inputs: {output_dir}")
+
+
+def _paths_overlap(first: Path, second: Path) -> bool:
+    return first == second or first in second.parents or second in first.parents
 
 
 def _candidate_rows(candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) -> list[dict]:

@@ -717,6 +717,46 @@ def test_prepare_multihop_cache_rejects_overwrite_of_raw_input_directory(tmp_pat
     assert raw_path.exists()
 
 
+def test_prepare_multihop_cache_rejects_symlink_output_inside_raw_tree_with_overwrite(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    raw_path = raw_dir / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where?",
+                "answer": "Somewhere",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "A valid evidence document."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_dir = raw_dir / "processed-link"
+    output_dir.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output directory must not contain raw input files"):
+        prepare_multihop_cache(
+            raw_queries=raw_dir,
+            raw_corpus=None,
+            output_dir=output_dir,
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=True,
+        )
+
+    assert raw_path.exists()
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert output_dir.is_symlink()
+
+
 def test_prepare_multihop_cache_allows_output_beside_raw_input_file(tmp_path):
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()

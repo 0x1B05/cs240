@@ -165,21 +165,22 @@ def prepare_multihop_cache(
 def _validate_output_does_not_contain_inputs(output_dir: Path, raw_queries: Path, raw_corpus: Path | None) -> None:
     try:
         resolved_output = output_dir.resolve(strict=False)
+        lexical_output = output_dir.absolute()
     except OSError as exc:
         raise DataValidationError(f"cannot resolve output directory: {output_dir}") from exc
     raw_paths = [raw_queries, *(path for path in (raw_corpus,) if path is not None)]
     for raw_path in raw_paths:
         try:
             resolved_raw = raw_path.resolve(strict=False)
+            lexical_raw = raw_path.absolute()
         except OSError as exc:
             raise DataValidationError(f"cannot resolve raw input file: {raw_path}") from exc
-        protected_root = resolved_raw if raw_path.is_dir() else resolved_raw
-        if (
-            resolved_output == resolved_raw
-            or protected_root in resolved_output.parents
-            or resolved_output in resolved_raw.parents
-        ):
+        if _paths_overlap(resolved_output, resolved_raw) or _paths_overlap(lexical_output, lexical_raw):
             raise DataValidationError(f"output directory must not contain raw input files: {output_dir}")
+
+
+def _paths_overlap(first: Path, second: Path) -> bool:
+    return first == second or first in second.parents or second in first.parents
 
 
 def load_dataset(data_dir: Path) -> Dataset:
