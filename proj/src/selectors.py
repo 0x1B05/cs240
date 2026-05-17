@@ -25,12 +25,12 @@ def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> 
         feasible = [item for item in remaining if total_cost + features.costs[item] <= budget]
         if not feasible:
             break
-        best = max(
+        best = min(
             feasible,
             key=lambda item: (
-                objective.marginal_gain(selected, item) / features.costs[item],
-                objective.marginal_gain(selected, item),
-                -features.costs[item],
+                -(objective.marginal_gain(selected, item) / features.costs[item]),
+                -objective.marginal_gain(selected, item),
+                features.costs[item],
                 features.doc_ids[item],
             ),
         )
@@ -137,11 +137,11 @@ def _best_feasible_singleton(features: FeatureSet, objective: Objective, budget:
     feasible = [item for item, cost in enumerate(features.costs) if cost <= budget]
     if not feasible:
         return SelectionResult((), 0, 0.0)
-    best = max(
+    best = min(
         feasible,
         key=lambda item: (
-            objective.value((item,)),
-            -features.costs[item],
+            -objective.value((item,)),
+            features.costs[item],
             features.doc_ids[item],
         ),
     )

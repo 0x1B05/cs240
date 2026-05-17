@@ -70,6 +70,21 @@ def test_budgeted_greedy_compares_against_best_feasible_singleton():
     assert result.objective_value == 11.0
 
 
+def test_budgeted_greedy_ties_by_ascending_doc_id():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("b", "a"),
+        costs=(1, 1),
+        relevance=(1.0, 1.0),
+        similarity=((1.0, 0.0), (0.0, 1.0)),
+    )
+    objective = WeightedSingletonObjective((1.0, 1.0))
+
+    result = budgeted_greedy(features, objective, budget=1)
+
+    assert result.indices == (1,)
+
+
 def test_baselines_are_budget_feasible_and_seeded_random_is_stable():
     features = _fixture_features()
     budget = 15

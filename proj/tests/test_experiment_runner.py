@@ -8,6 +8,7 @@ from proj.src.data import DataValidationError, load_dataset, read_jsonl
 from proj.src.experiments import (
     ExperimentConfig,
     generate_candidates,
+    parse_name_grid,
     parse_grid,
     run_experiment,
     run_smoke,
@@ -28,6 +29,15 @@ def test_parse_grid_rejects_empty_nonpositive_and_duplicates():
         parse_grid("nan", item_type=float, label="combined_lambdas")
     with pytest.raises(DataValidationError, match="finite"):
         parse_grid("inf", item_type=float, label="combined_lambdas")
+
+
+def test_parse_name_grid_rejects_empty_entries():
+    assert parse_name_grid("top_ranked,mmr", allowed=("top_ranked", "mmr"), label="selectors") == ("top_ranked", "mmr")
+
+    with pytest.raises(DataValidationError, match="empty value"):
+        parse_name_grid("top_ranked,,mmr", allowed=("top_ranked", "mmr"), label="selectors")
+    with pytest.raises(DataValidationError, match="empty value"):
+        parse_name_grid("coverage,", allowed=("coverage", "combined"), label="objectives")
 
 
 def test_run_experiment_writes_required_outputs(tmp_path):

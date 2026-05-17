@@ -105,9 +105,11 @@ def parse_grid(value: str, *, item_type, label: str) -> tuple:
 
 
 def parse_name_grid(value: str, *, allowed: tuple[str, ...], label: str) -> tuple[str, ...]:
-    names = tuple(item.strip() for item in value.split(",") if item.strip())
-    if not names:
+    names = tuple(item.strip() for item in value.split(","))
+    if not any(names):
         raise DataValidationError(f"{label} must not be empty")
+    if any(not item for item in names):
+        raise DataValidationError(f"{label} grid contains an empty value")
     unknown = sorted(set(names) - set(allowed))
     if unknown:
         raise DataValidationError(f"unknown {label}: {', '.join(unknown)}")
