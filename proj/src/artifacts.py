@@ -83,10 +83,16 @@ def _validate_aggregate_rows(rows: list[dict]) -> None:
 
 
 def _validate_required_methods(rows: list[dict]) -> None:
-    observed = {row["method_label"] for row in rows}
+    observed = {_required_method_name(row["method_label"]) for row in rows}
     missing = REQUIRED_METHODS - observed
     if missing:
         raise ArtifactValidationError(f"missing required methods: {sorted(missing)}")
+
+
+def _required_method_name(method_label: str) -> str:
+    if method_label.startswith("submodular_combined_lambda_"):
+        return "submodular_combined"
+    return method_label
 
 
 def _validate_submodular_objectives(rows: list[dict]) -> None:
