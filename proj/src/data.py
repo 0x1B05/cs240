@@ -134,7 +134,10 @@ def prepare_multihop_cache(
     validate_dataset(dataset)
 
     if output_dir.exists() and overwrite:
-        shutil.rmtree(output_dir)
+        if output_dir.is_symlink():
+            output_dir.unlink()
+        else:
+            shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(output_dir / "queries.jsonl", query_rows)
     write_jsonl(output_dir / "corpus.jsonl", corpus_rows)

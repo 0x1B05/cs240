@@ -160,6 +160,34 @@ def test_run_experiment_overwrite_unlinks_symlink_without_following_target(tmp_p
     assert not (output_dir / "linked").exists()
 
 
+def test_run_experiment_overwrite_replaces_symlinked_output_dir(tmp_path):
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_dir = tmp_path / "run-link"
+    output_dir.symlink_to(target_dir, target_is_directory=True)
+
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(12,),
+            candidate_sizes=(3,),
+            selectors=("top_ranked",),
+            objectives=("combined",),
+            seed=13,
+            optimal_max_items=3,
+            overwrite=True,
+        )
+    )
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert output_dir.is_dir()
+    assert not output_dir.is_symlink()
+    assert (output_dir / "config.json").exists()
+
+
 def test_run_experiment_rejects_overwrite_of_data_dir(tmp_path):
     output_dir = tmp_path / "fixture-copy"
     _copy_fixture_dataset(output_dir)

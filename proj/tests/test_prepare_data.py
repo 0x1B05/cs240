@@ -100,6 +100,44 @@ def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
         )
 
 
+def test_prepare_embedded_overwrite_replaces_symlinked_output_dir(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where is the Louvre?",
+                "answer": "Paris",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "The Louvre is in Paris."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_dir = tmp_path / "processed-link"
+    output_dir.symlink_to(target_dir, target_is_directory=True)
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=output_dir,
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=True,
+    )
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert output_dir.is_dir()
+    assert not output_dir.is_symlink()
+    assert read_jsonl(output_dir / "queries.jsonl")[0]["evidence_ids"] == ["d1"]
+
+
 def test_prepare_embedded_accepts_id_only_evidence_objects(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     raw_path.write_text(
