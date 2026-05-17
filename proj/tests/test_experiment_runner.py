@@ -176,6 +176,33 @@ def test_run_smoke_refuses_existing_nonempty_output_dir(tmp_path):
     assert marker.read_text(encoding="utf-8") == "do not delete\n"
 
 
+def test_run_experiment_rejects_symlinked_output_dir_without_overwrite(tmp_path):
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    target_file = target_dir / "keep.txt"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_dir = tmp_path / "run-link"
+    output_dir.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output path is a symlink"):
+        run_experiment(
+            ExperimentConfig(
+                data_dir="proj/data/fixtures",
+                output_dir=str(output_dir),
+                budgets=(12,),
+                candidate_sizes=(3,),
+                selectors=("top_ranked",),
+                objectives=("combined",),
+                seed=13,
+                optimal_max_items=3,
+                overwrite=False,
+            )
+        )
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
+    assert not (target_dir / "config.json").exists()
+
+
 def test_run_experiment_overwrite_unlinks_symlink_without_following_target(tmp_path):
     target_dir = tmp_path / "outside-target"
     target_dir.mkdir()
@@ -461,6 +488,18 @@ def test_generate_candidates_rejects_directory_output_path(tmp_path):
 
     with pytest.raises(DataValidationError, match="output path is not a file"):
         generate_candidates(Path("proj/data/fixtures"), output_path, top_n=3)
+
+
+def test_generate_candidates_rejects_symlink_output_path(tmp_path):
+    target_file = tmp_path / "outside.jsonl"
+    target_file.write_text("outside\n", encoding="utf-8")
+    output_path = tmp_path / "candidates-link.jsonl"
+    output_path.symlink_to(target_file)
+
+    with pytest.raises(DataValidationError, match="output path is a symlink"):
+        generate_candidates(Path("proj/data/fixtures"), output_path, top_n=3)
+
+    assert target_file.read_text(encoding="utf-8") == "outside\n"
 
 
 def test_run_experiment_labels_multiple_combined_lambdas(tmp_path):
