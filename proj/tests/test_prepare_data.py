@@ -69,6 +69,37 @@ def test_prepare_embedded_multihop_cache_is_deterministic(tmp_path):
     assert load_dataset(output_dir).queries[1].query == "Which city hosts the Louvre?"
 
 
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
+    raw_path = tmp_path / "raw.jsonl"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where is the Louvre?",
+                "answer": "Paris",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "The Louvre is in Paris."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "processed"
+    output_path.write_text("collision\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="output path is not a directory"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=output_path,
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=overwrite,
+        )
+
+
 def test_prepare_embedded_accepts_id_only_evidence_objects(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     raw_path.write_text(

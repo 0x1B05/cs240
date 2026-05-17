@@ -112,6 +112,8 @@ def prepare_multihop_cache(
     schema = _resolve_schema(schema, raw_corpus)
     if sample_size is not None and sample_size <= 0:
         raise DataValidationError("sample_size must be positive")
+    if output_dir.exists() and not output_dir.is_dir():
+        raise DataValidationError(f"output path is not a directory: {output_dir}")
     if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
         raise DataValidationError(f"output directory exists; pass overwrite to replace it: {output_dir}")
 
