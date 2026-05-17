@@ -189,6 +189,130 @@ def test_cli_select_evaluate_consumes_candidate_file(tmp_path, capsys):
     assert (output_dir / "per_query_metrics.jsonl").exists()
 
 
+def test_cli_select_evaluate_generates_artifact_compatible_grid(tmp_path, capsys):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    selected_dir = tmp_path / "selected"
+    artifact_dir = tmp_path / "artifacts"
+    assert (
+        main(
+            [
+                "generate-candidates",
+                "--data-dir",
+                "proj/data/fixtures",
+                "--output-path",
+                str(candidates_path),
+                "--top-n",
+                "5",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "select-evaluate",
+            "--data-dir",
+            "proj/data/fixtures",
+            "--candidates-path",
+            str(candidates_path),
+            "--output-dir",
+            str(selected_dir),
+            "--budget",
+            "18",
+            "--seed",
+            "13",
+            "--selectors",
+            "top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy",
+            "--objectives",
+            "coverage,diversity,combined",
+            "--combined-lambdas",
+            "1.0",
+            "--optimal-max-items",
+            "5",
+        ]
+    )
+    selected = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "selection/evaluation" in selected.out
+
+    exit_code = main(
+        [
+            "generate-artifacts",
+            "--run-dir",
+            str(selected_dir),
+            "--output-dir",
+            str(artifact_dir),
+        ]
+    )
+    artifacts = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "report artifacts" in artifacts.out
+    assert (artifact_dir / "comparison_table.md").exists()
+
+
+def test_cli_select_evaluate_default_grid_supports_artifacts(tmp_path, capsys):
+    candidates_path = tmp_path / "candidates.jsonl"
+    selected_dir = tmp_path / "selected"
+    artifact_dir = tmp_path / "artifacts"
+    assert (
+        main(
+            [
+                "generate-candidates",
+                "--data-dir",
+                "proj/data/fixtures",
+                "--output-path",
+                str(candidates_path),
+                "--top-n",
+                "5",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "select-evaluate",
+            "--data-dir",
+            "proj/data/fixtures",
+            "--candidates-path",
+            str(candidates_path),
+            "--output-dir",
+            str(selected_dir),
+            "--budget",
+            "18",
+            "--seed",
+            "13",
+            "--optimal-max-items",
+            "5",
+        ]
+    )
+    selected = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "selection/evaluation" in selected.out
+
+    exit_code = main(
+        [
+            "generate-artifacts",
+            "--run-dir",
+            str(selected_dir),
+            "--output-dir",
+            str(artifact_dir),
+        ]
+    )
+    artifacts = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "report artifacts" in artifacts.out
+    assert (artifact_dir / "comparison_table.md").exists()
+
+
 def test_cli_generate_artifacts_rejects_file_output_dir(tmp_path, capsys):
     run_dir = tmp_path / "run"
     output_path = tmp_path / "artifacts.md"
