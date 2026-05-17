@@ -23,7 +23,9 @@ def test_cli_help_lists_full_experiment_surface(capsys):
 
 
 def test_cli_prepare_data_writes_processed_cache(tmp_path, capsys):
-    raw_path = tmp_path / "raw.jsonl"
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    raw_path = raw_dir / "raw.jsonl"
     raw_path.write_text(
         json.dumps(
             {
@@ -146,7 +148,9 @@ def test_cli_generate_candidates_rejects_directory_output_path(tmp_path, capsys)
 
 
 def test_cli_select_evaluate_consumes_candidate_file(tmp_path, capsys):
-    candidates_path = tmp_path / "candidates.jsonl"
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
     output_dir = tmp_path / "selected"
     assert (
         main(
