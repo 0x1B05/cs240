@@ -173,21 +173,23 @@ def _runtime_by_candidate_size(rows: list[dict]) -> str:
 
 
 def _optimal_summary(rows: list[dict]) -> str:
-    required = {"query_id", "selector", "objective", "budget", "top_n", "status", "greedy_value", "optimal_value", "approx_ratio"}
+    required = {"query_id", "selector", "objective", "lambda_value", "budget", "top_n", "status", "greedy_value", "optimal_value", "approx_ratio"}
     missing = required - set(rows[0])
     if missing:
         raise ArtifactValidationError(f"missing required columns: {sorted(missing)}")
     lines = [
         "# Optimal Checks",
         "",
-        "| Query | Objective | Budget | Top N | Status | Greedy | Optimal | Approx Ratio |",
-        "|---|---|---:|---:|---|---:|---:|---:|",
+        "| Query | Selector | Objective | Lambda | Budget | Top N | Status | Greedy | Optimal | Approx Ratio |",
+        "|---|---|---|---:|---:|---:|---|---:|---:|---:|",
     ]
-    for row in sorted(rows, key=lambda item: (item["query_id"], item["objective"], item["budget"], item["top_n"])):
+    for row in sorted(rows, key=_optimal_sort_key):
         lines.append(
-            "| {query} | {objective} | {budget} | {top_n} | {status} | {greedy} | {optimal} | {ratio} |".format(
+            "| {query} | {selector} | {objective} | {lambda_value} | {budget} | {top_n} | {status} | {greedy} | {optimal} | {ratio} |".format(
                 query=row["query_id"],
+                selector=row["selector"],
                 objective=row["objective"],
+                lambda_value=row["lambda_value"],
                 budget=row["budget"],
                 top_n=row["top_n"],
                 status=row["status"],
@@ -197,6 +199,17 @@ def _optimal_summary(rows: list[dict]) -> str:
             )
         )
     return "\n".join(lines) + "\n"
+
+
+def _optimal_sort_key(row: dict) -> tuple:
+    return (
+        row["query_id"],
+        int(float(row["budget"])),
+        int(float(row["top_n"])),
+        row["selector"],
+        row["objective"],
+        float(row["lambda_value"]),
+    )
 
 
 def _score(row: dict) -> tuple[float, float, float]:
