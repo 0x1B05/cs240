@@ -82,7 +82,7 @@ class ExperimentConfig:
     overwrite: bool = False
 
 
-def parse_grid(value: str, *, item_type, label: str) -> tuple:
+def parse_grid(value: str, *, item_type, label: str, allow_zero: bool = False) -> tuple:
     if not value or not value.strip():
         raise DataValidationError(f"{label} grid must not be empty")
     items = []
@@ -96,8 +96,9 @@ def parse_grid(value: str, *, item_type, label: str) -> tuple:
             raise DataValidationError(f"{label} grid contains invalid value: {stripped}") from exc
         if isinstance(item, float) and not math.isfinite(item):
             raise DataValidationError(f"{label} grid values must be finite")
-        if item <= 0:
-            raise DataValidationError(f"{label} grid values must be positive")
+        if item < 0 or (item == 0 and not allow_zero):
+            qualifier = "nonnegative" if allow_zero else "positive"
+            raise DataValidationError(f"{label} grid values must be {qualifier}")
         items.append(item)
     if len(items) != len(set(items)):
         raise DataValidationError(f"{label} grid contains duplicate values")
@@ -440,8 +441,8 @@ def _validate_config(config: ExperimentConfig) -> None:
         raise DataValidationError("selectors must not be empty")
     if not config.objectives:
         raise DataValidationError("objectives must not be empty")
-    if any(value <= 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
-        raise DataValidationError("combined_lambdas must be positive and unique")
+    if any(value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
+        raise DataValidationError("combined_lambdas must be nonnegative and unique")
     if not 0.0 <= config.mmr_lambda <= 1.0:
         raise DataValidationError("mmr_lambda must be in [0, 1]")
     if config.optimal_max_items <= 0:

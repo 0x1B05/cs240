@@ -18,6 +18,7 @@ from proj.src.experiments import (
 
 def test_parse_grid_rejects_empty_nonpositive_and_duplicates():
     assert parse_grid("4,8", item_type=int, label="budgets") == (4, 8)
+    assert parse_grid("0,1", item_type=float, label="combined_lambdas", allow_zero=True) == (0.0, 1.0)
 
     with pytest.raises(DataValidationError, match="budgets"):
         parse_grid("", item_type=int, label="budgets")
@@ -100,6 +101,26 @@ def test_run_experiment_writes_required_outputs(tmp_path):
     }
     assert "submodular_combined" in {row["method_label"] for row in metrics}
     assert "evidence_f1_mean" in (output_dir / "aggregate_metrics.csv").read_text(encoding="utf-8")
+
+
+def test_run_experiment_allows_zero_combined_lambda(tmp_path):
+    output_dir = tmp_path / "lambda-zero-run"
+
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/fixtures",
+            output_dir=str(output_dir),
+            budgets=(18,),
+            candidate_sizes=(3,),
+            selectors=("budgeted_greedy",),
+            objectives=("combined",),
+            combined_lambdas=(0.0,),
+            seed=13,
+            optimal_max_items=3,
+        )
+    )
+
+    assert (output_dir / "aggregate_metrics.csv").exists()
 
 
 def test_runtime_units_reflect_selector_work(tmp_path):

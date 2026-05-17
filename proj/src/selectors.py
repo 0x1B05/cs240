@@ -87,13 +87,13 @@ def mmr(features: FeatureSet, budget: int, lambda_value: float = 0.7) -> Selecti
         if not feasible:
             break
 
-        def score(item: int) -> tuple[float, str]:
+        def score(item: int) -> float:
             redundancy = max((features.similarity[item][chosen] for chosen in selected), default=0.0)
             mmr_score = lambda_value * features.relevance[item] - (1.0 - lambda_value) * redundancy
-            return (mmr_score / features.costs[item], features.doc_ids[item])
+            return mmr_score / features.costs[item]
 
-        best = max(feasible, key=score)
-        if score(best)[0] <= 0:
+        best = min(feasible, key=lambda item: (-score(item), features.doc_ids[item]))
+        if score(best) <= 0:
             break
         selected.append(best)
         total_cost += features.costs[best]
