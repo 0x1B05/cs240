@@ -471,24 +471,25 @@ def test_select_evaluate_rejects_overwrite_of_candidate_directory(tmp_path):
     assert candidates_path.exists()
 
 
-def test_select_evaluate_rejects_output_nested_under_candidate_directory(tmp_path):
+def test_select_evaluate_allows_output_beside_candidate_file(tmp_path):
     candidates_dir = tmp_path / "staged"
     candidates_dir.mkdir()
     candidates_path = candidates_dir / "candidates.jsonl"
     generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
     output_dir = candidates_dir / "outputs"
 
-    with pytest.raises(DataValidationError, match="output directory must not contain experiment inputs"):
-        select_evaluate(
-            data_dir=Path("proj/data/fixtures"),
-            candidates_path=candidates_path,
-            output_dir=output_dir,
-            budget=18,
-            seed=13,
-            overwrite=False,
-        )
+    summary = select_evaluate(
+        data_dir=Path("proj/data/fixtures"),
+        candidates_path=candidates_path,
+        output_dir=output_dir,
+        budget=18,
+        seed=13,
+        overwrite=False,
+    )
 
-    assert not output_dir.exists()
+    assert summary["queries"] == 3
+    assert candidates_path.exists()
+    assert (output_dir / "per_query_metrics.jsonl").exists()
 
 
 def test_generate_candidates_rejects_output_inside_data_dir(tmp_path):

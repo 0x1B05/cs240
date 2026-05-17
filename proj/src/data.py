@@ -173,10 +173,7 @@ def _validate_output_does_not_contain_inputs(output_dir: Path, raw_queries: Path
             resolved_raw = raw_path.resolve(strict=False)
         except OSError as exc:
             raise DataValidationError(f"cannot resolve raw input file: {raw_path}") from exc
-        if raw_path.exists():
-            protected_root = resolved_raw if raw_path.is_dir() else resolved_raw.parent
-        else:
-            protected_root = resolved_raw
+        protected_root = resolved_raw if raw_path.is_dir() else resolved_raw
         if (
             resolved_output == resolved_raw
             or protected_root in resolved_output.parents

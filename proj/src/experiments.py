@@ -501,10 +501,7 @@ def _validate_output_does_not_contain_inputs(output_dir: Path, input_paths: tupl
             resolved_input = input_path.resolve(strict=False)
         except OSError as exc:
             raise DataValidationError(f"cannot resolve experiment input path: {input_path}") from exc
-        if input_path.exists():
-            protected_root = resolved_input if input_path.is_dir() else resolved_input.parent
-        else:
-            protected_root = resolved_input
+        protected_root = resolved_input if input_path.is_dir() else resolved_input
         if (
             resolved_output == resolved_input
             or protected_root in resolved_output.parents

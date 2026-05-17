@@ -689,7 +689,7 @@ def test_prepare_multihop_cache_rejects_overwrite_of_raw_input_directory(tmp_pat
     assert raw_path.exists()
 
 
-def test_prepare_multihop_cache_rejects_output_nested_under_raw_input_directory(tmp_path):
+def test_prepare_multihop_cache_allows_output_beside_raw_input_file(tmp_path):
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
     raw_path = raw_dir / "raw.jsonl"
@@ -708,19 +708,19 @@ def test_prepare_multihop_cache_rejects_output_nested_under_raw_input_directory(
     )
     output_dir = raw_dir / "processed"
 
-    with pytest.raises(DataValidationError, match="output directory must not contain raw input files"):
-        prepare_multihop_cache(
-            raw_queries=raw_path,
-            raw_corpus=None,
-            output_dir=output_dir,
-            schema="embedded",
-            sample_size=None,
-            seed=13,
-            overwrite=False,
-        )
+    manifest = prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=output_dir,
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
 
+    assert manifest["queries"] == 1
     assert raw_path.exists()
-    assert not output_dir.exists()
+    assert (output_dir / "queries.jsonl").exists()
 
 
 def test_prepare_split_cache_rejects_overwrite_of_raw_input_parent(tmp_path):
