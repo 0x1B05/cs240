@@ -469,7 +469,10 @@ def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple
         raise DataValidationError(f"output directory exists; pass --overwrite to replace it: {output_dir}")
     if output_dir.exists() and overwrite:
         _validate_output_does_not_contain_inputs(output_dir, input_paths)
-        _clear_output_dir(output_dir)
+        if output_dir.is_symlink():
+            output_dir.unlink()
+        else:
+            _clear_output_dir(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
 
