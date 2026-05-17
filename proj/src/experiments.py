@@ -152,7 +152,8 @@ def select_evaluate(
     optimal_max_items: int | None = None,
 ) -> dict:
     dataset = load_dataset(data_dir)
-    candidates_by_top_n = load_candidate_file(candidates_path, dataset)
+    candidates_by_top_n = load_candidate_file(candidates_path, dataset, require_all_queries=False)
+    dataset = _subset_dataset_for_candidates(dataset, candidates_by_top_n)
     candidate_sizes = tuple(sorted(candidates_by_top_n))
     return _run_with_candidates(
         dataset=dataset,
@@ -211,7 +212,7 @@ def run_smoke(data_dir: Path, output_dir: Path, budget: int = DEFAULT_BUDGET, to
     return metrics
 
 
-def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, list[Candidate]]]:
+def load_candidate_file(path: Path, dataset: Dataset, require_all_queries: bool = True) -> dict[int, dict[str, list[Candidate]]]:
     rows = read_jsonl(path)
     required = {"query_id", "doc_id", "rank", "score", "text", "token_cost", "top_n"}
     query_ids = {query.query_id for query in dataset.queries}
@@ -249,7 +250,7 @@ def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, lis
 
     for top_n, by_query in grouped.items():
         missing_queries = query_ids - set(by_query)
-        if missing_queries:
+        if require_all_queries and missing_queries:
             raise DataValidationError(f"candidate file missing queries for top_n={top_n}: {sorted(missing_queries)}")
         for query_id, candidates in by_query.items():
             candidates.sort(key=lambda item: (item.rank, item.doc_id))
@@ -266,6 +267,20 @@ def load_candidate_file(path: Path, dataset: Dataset) -> dict[int, dict[str, lis
                 raise DataValidationError(f"candidate file contains duplicate doc ids for query {query_id}, top_n={top_n}")
 
     return {top_n: {query_id: list(candidates) for query_id, candidates in sorted(by_query.items())} for top_n, by_query in sorted(grouped.items())}
+
+
+def _subset_dataset_for_candidates(dataset: Dataset, candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) -> Dataset:
+    candidate_query_ids_by_top_n = {top_n: set(by_query) for top_n, by_query in candidates_by_top_n.items()}
+    query_id_sets = list(candidate_query_ids_by_top_n.values())
+    if not query_id_sets:
+        raise DataValidationError("candidate file contains no candidates")
+    first_query_ids = query_id_sets[0]
+    for top_n, query_ids in candidate_query_ids_by_top_n.items():
+        if query_ids != first_query_ids:
+            raise DataValidationError(f"candidate file has inconsistent query sets for top_n={top_n}")
+    query_by_id = {query.query_id: query for query in dataset.queries}
+    queries = tuple(query_by_id[query_id] for query_id in sorted(first_query_ids))
+    return Dataset(queries=queries, corpus=dataset.corpus)
 
 
 def aggregate_metric_rows(metric_rows: list[dict]) -> list[dict]:

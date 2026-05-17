@@ -425,6 +425,43 @@ def test_run_experiment_sample_size_controls_query_subset(tmp_path):
     assert {row["query_id"] for row in first_metrics} == {row["query_id"] for row in first_manifest}
 
 
+def test_select_evaluate_consumes_sampled_run_candidate_file(tmp_path):
+    sampled_run = tmp_path / "sampled-run"
+    selected = tmp_path / "selected"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/processed/fixture-multihop",
+            output_dir=str(sampled_run),
+            budgets=(12,),
+            candidate_sizes=(3,),
+            selectors=("top_ranked",),
+            objectives=("combined",),
+            sample_size=2,
+            sample_seed=1,
+            seed=13,
+            optimal_max_items=3,
+        )
+    )
+
+    summary = select_evaluate(
+        data_dir=Path("proj/data/processed/fixture-multihop"),
+        candidates_path=sampled_run / "candidates.jsonl",
+        output_dir=selected,
+        budget=12,
+        seed=13,
+        selectors=("top_ranked",),
+        objectives=("combined",),
+        optimal_max_items=3,
+        overwrite=False,
+    )
+
+    expected_query_ids = {row["query_id"] for row in read_jsonl(sampled_run / "sample_manifest.jsonl")}
+
+    assert summary["queries"] == 2
+    assert {row["query_id"] for row in read_jsonl(selected / "per_query_metrics.jsonl")} == expected_query_ids
+    assert json.loads((selected / "config.json").read_text(encoding="utf-8"))["query_ids"] == sorted(expected_query_ids)
+
+
 def test_random_seeded_baseline_is_salted_by_query_id(tmp_path):
     output_dir = tmp_path / "random-run"
     run_experiment(
@@ -690,6 +727,27 @@ def test_select_evaluate_rejects_truncated_candidate_blocks(tmp_path):
     candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
 
     with pytest.raises(DataValidationError, match="fewer than top_n"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=tmp_path / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
+
+
+def test_select_evaluate_rejects_inconsistent_sampled_candidate_query_sets(tmp_path):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=4)
+    source_rows = read_jsonl(candidates_path)
+    rows = [dict(row, top_n=3) for row in source_rows if row["query_id"] in {"q1", "q2"} and row["rank"] <= 3]
+    rows.extend(row for row in source_rows if row["query_id"] == "q1")
+    candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="inconsistent query sets"):
         select_evaluate(
             data_dir=Path("proj/data/fixtures"),
             candidates_path=candidates_path,
