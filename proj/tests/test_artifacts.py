@@ -193,6 +193,20 @@ def test_generate_artifacts_rejects_symlink_output_dir(tmp_path):
     assert not (target_dir / "comparison_table.md").exists()
 
 
+def test_generate_artifacts_rejects_symlink_output_parent(tmp_path):
+    run_dir = tmp_path / "run"
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    output_parent = tmp_path / "artifacts-parent-link"
+    output_parent.symlink_to(target_dir, target_is_directory=True)
+    _write_minimal_artifact_inputs(run_dir, [_optimal_row("budgeted_greedy", "combined", "1.0", 18, 5)])
+
+    with pytest.raises(ArtifactValidationError, match="output parent path is a symlink"):
+        generate_artifacts(run_dir, output_parent / "artifacts")
+
+    assert not (target_dir / "artifacts" / "comparison_table.md").exists()
+
+
 def test_generate_artifacts_rejects_incompatible_metric_schema(tmp_path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()

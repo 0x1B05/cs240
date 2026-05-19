@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from .paths import has_symlink_parent
+
 
 class ArtifactValidationError(ValueError):
     """Raised when experiment outputs cannot be converted to report artifacts."""
@@ -37,6 +39,8 @@ def generate_artifacts(run_dir: Path, output_dir: Path) -> list[Path]:
 
     if output_dir.is_symlink():
         raise ArtifactValidationError(f"output path is a symlink: {output_dir}")
+    if has_symlink_parent(output_dir):
+        raise ArtifactValidationError(f"output parent path is a symlink: {output_dir.parent}")
     if output_dir.exists() and not output_dir.is_dir():
         raise ArtifactValidationError(f"output path is not a directory: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
