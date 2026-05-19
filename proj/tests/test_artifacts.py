@@ -2,7 +2,7 @@ import csv
 
 import pytest
 
-from proj.src.artifacts import ArtifactValidationError, generate_artifacts
+from proj.src.artifacts import ArtifactValidationError, REQUIRED_AGGREGATE_COLUMNS, generate_artifacts
 from proj.src.experiments import ExperimentConfig, run_experiment
 
 
@@ -200,6 +200,52 @@ def test_generate_artifacts_rejects_incompatible_metric_schema(tmp_path):
     (run_dir / "optimal_checks.csv").write_text("status\nexecuted\n", encoding="utf-8")
 
     with pytest.raises(ArtifactValidationError, match="missing required columns"):
+        generate_artifacts(run_dir, tmp_path / "artifacts")
+
+
+def test_generate_artifacts_rejects_empty_numeric_cells(tmp_path):
+    run_dir = tmp_path / "run"
+    rows = [
+        _aggregate_row("top_ranked", "top_ranked", "none"),
+        _aggregate_row("relevance_ratio", "relevance_ratio", "none"),
+        _aggregate_row("random_seeded", "random_seeded", "none"),
+        _aggregate_row("mmr", "mmr", "none"),
+        _aggregate_row("submodular_coverage", "budgeted_greedy", "coverage"),
+        _aggregate_row("submodular_diversity", "budgeted_greedy", "diversity"),
+        _aggregate_row("submodular_combined", "budgeted_greedy", "combined"),
+    ]
+    rows[0]["budget"] = None
+    _write_minimal_artifact_inputs(run_dir, [_optimal_row("budgeted_greedy", "combined", "1.0", 18, 5)])
+    _write_csv(run_dir / "aggregate_metrics.csv", list(REQUIRED_AGGREGATE_COLUMNS), rows)
+
+    with pytest.raises(ArtifactValidationError, match="non-numeric aggregate column: budget"):
+        generate_artifacts(run_dir, tmp_path / "artifacts")
+
+
+def test_generate_artifacts_rejects_truncated_numeric_cells(tmp_path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    columns = [
+        "method_label",
+        "selector",
+        "objective",
+        "lambda_value",
+        "top_n",
+        "queries",
+        "evidence_recall_mean",
+        "evidence_recall_std",
+        "evidence_f1_mean",
+        "evidence_f1_std",
+        "redundancy_mean",
+        "budget_utilization_mean",
+        "runtime_units_mean",
+        "budget",
+    ]
+    values = ["top_ranked", "top_ranked", "none", "1.0", "5", "1", "0.5", "0.0", "0.5", "0.0", "0.0", "0.8", "10"]
+    (run_dir / "aggregate_metrics.csv").write_text(",".join(columns) + "\n" + ",".join(values) + "\n", encoding="utf-8")
+    _write_csv(run_dir / "optimal_checks.csv", list(_optimal_row("budgeted_greedy", "combined", "1.0", 18, 5)), [_optimal_row("budgeted_greedy", "combined", "1.0", 18, 5)])
+
+    with pytest.raises(ArtifactValidationError, match="non-numeric aggregate column: budget"):
         generate_artifacts(run_dir, tmp_path / "artifacts")
 
 

@@ -285,6 +285,39 @@ def test_prepare_embedded_resolves_one_token_text_evidence(tmp_path):
     assert query["evidence_ids"] == [materialized_id]
 
 
+def test_prepare_embedded_materializes_id_like_short_text_evidence(tmp_path):
+    raw_path = _raw_path(tmp_path)
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Which disease?",
+                "answer": "COVID-19",
+                "evidence_list": ["COVID-19"],
+                "contexts": [{"id": "ctx-present", "text": "Public health context."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=tmp_path / "processed",
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+
+    query = read_jsonl(tmp_path / "processed" / "queries.jsonl")[0]
+    corpus_text_by_id = {row["doc_id"]: row["text"] for row in read_jsonl(tmp_path / "processed" / "corpus.jsonl")}
+    materialized_id = next(doc_id for doc_id, text in corpus_text_by_id.items() if text == "COVID-19")
+
+    assert query["evidence_ids"] == [materialized_id]
+
+
 def test_prepare_embedded_rejects_unknown_string_evidence_id(tmp_path):
     raw_path = _raw_path(tmp_path)
     raw_path.write_text(

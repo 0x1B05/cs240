@@ -82,7 +82,7 @@ def _validate_aggregate_rows(rows: list[dict]) -> None:
         ]:
             try:
                 float(row[numeric])
-            except ValueError as exc:
+            except (TypeError, ValueError) as exc:
                 raise ArtifactValidationError(f"non-numeric aggregate column: {numeric}") from exc
 
 

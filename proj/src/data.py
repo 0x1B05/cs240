@@ -453,8 +453,10 @@ def _embedded_doc_id(query_id: str, doc_id: str) -> str:
 def _looks_like_evidence_id(value: str) -> bool:
     if " " in value.strip():
         return False
-    return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9]*[-_][A-Za-z0-9_-]+", value)) or bool(
-        re.fullmatch(r"[A-Za-z0-9_-]*\d[A-Za-z0-9_-]*", value)
+    if any(character.isupper() for character in value):
+        return False
+    return bool(re.fullmatch(r"[a-z][a-z0-9]*[-_][a-z0-9_-]+", value)) or bool(
+        re.fullmatch(r"[a-z]*\d[a-z0-9_-]*", value)
     )
 
 
