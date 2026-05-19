@@ -492,6 +492,54 @@ def test_select_evaluate_consumes_sampled_run_candidate_file(tmp_path):
     assert json.loads((selected / "config.json").read_text(encoding="utf-8"))["query_ids"] == sorted(expected_query_ids)
 
 
+def test_select_evaluate_consumes_staged_subset_candidate_file(tmp_path):
+    sampled_run = tmp_path / "sampled-run"
+    first_selected = tmp_path / "first-selected"
+    second_selected = tmp_path / "second-selected"
+    run_experiment(
+        ExperimentConfig(
+            data_dir="proj/data/processed/fixture-multihop",
+            output_dir=str(sampled_run),
+            budgets=(12,),
+            candidate_sizes=(3,),
+            selectors=("top_ranked",),
+            objectives=("combined",),
+            sample_size=2,
+            sample_seed=1,
+            seed=13,
+            optimal_max_items=3,
+        )
+    )
+    select_evaluate(
+        data_dir=Path("proj/data/processed/fixture-multihop"),
+        candidates_path=sampled_run / "candidates.jsonl",
+        output_dir=first_selected,
+        budget=12,
+        seed=13,
+        selectors=("top_ranked",),
+        objectives=("combined",),
+        optimal_max_items=3,
+        overwrite=False,
+    )
+
+    summary = select_evaluate(
+        data_dir=Path("proj/data/processed/fixture-multihop"),
+        candidates_path=first_selected / "candidates.jsonl",
+        output_dir=second_selected,
+        budget=12,
+        seed=13,
+        selectors=("top_ranked",),
+        objectives=("combined",),
+        optimal_max_items=3,
+        overwrite=False,
+    )
+
+    expected_query_ids = {row["query_id"] for row in read_jsonl(first_selected / "sample_manifest.jsonl")}
+
+    assert summary["queries"] == 2
+    assert {row["query_id"] for row in read_jsonl(second_selected / "per_query_metrics.jsonl")} == expected_query_ids
+
+
 def test_select_evaluate_rejects_partial_candidate_file_without_sample_manifest(tmp_path):
     candidates_dir = tmp_path / "candidates"
     candidates_dir.mkdir()
@@ -509,6 +557,34 @@ def test_select_evaluate_rejects_partial_candidate_file_without_sample_manifest(
             seed=13,
             overwrite=False,
         )
+
+
+def test_select_evaluate_ignores_malformed_adjacent_sample_metadata_for_full_candidates(tmp_path):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    (candidates_dir / "sample_manifest.jsonl").write_text(
+        "\n".join(json.dumps({"query_id": query_id}) for query_id in ["q1", "q2"]) + "\n",
+        encoding="utf-8",
+    )
+    (candidates_dir / "config.json").write_text(
+        json.dumps({"candidate_sizes": [3], "candidates_fingerprint": "stale", "query_ids": "q1,q2"}),
+        encoding="utf-8",
+    )
+
+    summary = select_evaluate(
+        data_dir=Path("proj/data/fixtures"),
+        candidates_path=candidates_path,
+        output_dir=tmp_path / "selected",
+        budget=18,
+        seed=13,
+        selectors=("top_ranked",),
+        objectives=("combined",),
+        overwrite=False,
+    )
+
+    assert summary["queries"] == 3
 
 
 def test_select_evaluate_rejects_partial_candidate_file_with_stale_sample_manifest(tmp_path):

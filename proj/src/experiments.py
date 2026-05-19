@@ -284,12 +284,14 @@ def _candidate_file_matches_sample_manifest(candidates_path: Path, dataset: Data
     if not manifest_query_ids <= dataset_query_ids:
         unknown = sorted(manifest_query_ids - dataset_query_ids)
         raise DataValidationError(f"sample manifest references unknown query_id: {unknown}")
-    config = _read_run_config(config_path)
-    config_query_ids = set(_config_list(config, "query_ids", item_type=str))
-    config_candidate_sizes = set(_config_list(config, "candidate_sizes", item_type=int))
+    try:
+        config = _read_run_config(config_path)
+        config_query_ids = set(_config_list(config, "query_ids", item_type=str))
+        config_candidate_sizes = set(_config_list(config, "candidate_sizes", item_type=int))
+    except DataValidationError:
+        return False
     return (
-        config.get("sample_size") is not None
-        and candidate_query_ids == manifest_query_ids
+        candidate_query_ids == manifest_query_ids
         and manifest_query_ids == config_query_ids
         and manifest_query_ids != dataset_query_ids
         and candidate_top_ns == config_candidate_sizes
