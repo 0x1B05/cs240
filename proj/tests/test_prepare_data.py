@@ -318,6 +318,34 @@ def test_prepare_embedded_materializes_id_like_short_text_evidence(tmp_path):
     assert query["evidence_ids"] == [materialized_id]
 
 
+def test_prepare_embedded_rejects_unknown_uppercase_string_evidence_id(tmp_path):
+    raw_path = _raw_path(tmp_path)
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Which document?",
+                "answer": "A1",
+                "evidence_list": ["DOCX"],
+                "contexts": [{"id": "DOC1", "text": "Known local document."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="missing evidence in corpus: DOCX"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=tmp_path / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_prepare_embedded_rejects_unknown_string_evidence_id(tmp_path):
     raw_path = _raw_path(tmp_path)
     raw_path.write_text(

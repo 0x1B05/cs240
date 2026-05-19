@@ -279,6 +279,7 @@ def _prepare_embedded_rows(raw_queries: Path) -> tuple[list[dict], list[dict]]:
             corpus_by_id,
             text_to_doc_id,
             local_id_to_doc_id=local_id_to_doc_id_by_row[index],
+            local_doc_ids=local_doc_ids_by_row[index],
             local_text_to_doc_id=local_text_to_doc_id_by_row[index],
             local_text_to_doc_ids=local_text_to_doc_ids_by_row[index],
             text_to_doc_ids=text_to_doc_ids,
@@ -374,6 +375,7 @@ def _normalize_evidence_ids(
     text_to_doc_id: dict[str, str],
     *,
     local_id_to_doc_id: dict[str, str] | None = None,
+    local_doc_ids: set[str] | None = None,
     local_text_to_doc_id: dict[str, str] | None = None,
     local_text_to_doc_ids: dict[str, list[str]] | None = None,
     text_to_doc_ids: dict[str, list[str]] | None = None,
@@ -431,6 +433,8 @@ def _normalize_evidence_ids(
                     evidence_ids.append(doc_id)
                 elif evidence_key == "evidence_list" and _looks_like_evidence_id(value):
                     raise DataValidationError(f"missing evidence in corpus: {value}")
+                elif evidence_key == "evidence_list" and _has_id_like_local_contexts(local_doc_ids) and " " not in normalized:
+                    raise DataValidationError(f"missing evidence in corpus: {value}")
                 elif allow_materialize and (evidence_key == "evidence_list" or " " in normalized):
                     document = {"doc_id": _hash_doc_id(normalized), "text": normalized}
                     _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
@@ -457,6 +461,18 @@ def _looks_like_evidence_id(value: str) -> bool:
         return False
     return bool(re.fullmatch(r"[a-z][a-z0-9]*[-_][a-z0-9_-]+", value)) or bool(
         re.fullmatch(r"[a-z]*\d[a-z0-9_-]*", value)
+    )
+
+
+def _has_id_like_local_contexts(local_doc_ids: set[str] | None) -> bool:
+    if not local_doc_ids:
+        return False
+    return any(" " not in doc_id and any(character.isupper() for character in doc_id) and _looks_like_structured_token(doc_id) for doc_id in local_doc_ids)
+
+
+def _looks_like_structured_token(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9]*[-_][A-Za-z0-9_-]+", value)) or bool(
+        re.fullmatch(r"[A-Za-z]*\d[A-Za-z0-9_-]*", value)
     )
 
 

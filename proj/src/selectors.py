@@ -17,6 +17,7 @@ class SelectionResult:
 
 def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> SelectionResult:
     _validate_budget(budget)
+    _validate_objective(objective)
     selected: list[int] = []
     remaining = set(range(len(features.doc_ids)))
     total_cost = 0
@@ -146,6 +147,11 @@ def _best_feasible_singleton(features: FeatureSet, objective: Objective, budget:
         ),
     )
     return SelectionResult((best,), features.costs[best], objective.value((best,)))
+
+
+def _validate_objective(objective: Objective) -> None:
+    if not callable(getattr(objective, "marginal_gain", None)) or not callable(getattr(objective, "value", None)):
+        raise DataValidationError("objective must implement marginal_gain() and value()")
 
 
 def _validate_budget(budget: int) -> None:
