@@ -53,6 +53,13 @@ def test_budgeted_greedy_respects_budget():
     assert result.objective_value is not None
 
 
+def test_budgeted_greedy_rejects_invalid_objective_interface():
+    features = _fixture_features()
+
+    with pytest.raises(DataValidationError, match="objective"):
+        budgeted_greedy(features, object(), budget=18)
+
+
 def test_budgeted_greedy_compares_against_best_feasible_singleton():
     features = FeatureSet(
         query_id="q",
