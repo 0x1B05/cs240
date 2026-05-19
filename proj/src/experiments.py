@@ -122,6 +122,7 @@ def parse_name_grid(value: str, *, allowed: tuple[str, ...], label: str) -> tupl
 
 
 def run_experiment(config: ExperimentConfig) -> dict:
+    _validate_config(config)
     dataset = _sample_dataset(load_dataset(Path(config.data_dir)), config.sample_size, config.sample_seed)
     candidates_by_top_n = {top_n: retrieve_top_n(dataset, top_n) for top_n in config.candidate_sizes}
     return _run_with_candidates(dataset, candidates_by_top_n, config, input_paths=(Path(config.data_dir),))
@@ -503,21 +504,33 @@ def _run_with_candidates(
 
 
 def _validate_config(config: ExperimentConfig) -> None:
-    if not config.budgets or any(item <= 0 for item in config.budgets) or len(config.budgets) != len(set(config.budgets)):
+    if (
+        not config.budgets
+        or any(not isinstance(item, int) or item <= 0 for item in config.budgets)
+        or len(config.budgets) != len(set(config.budgets))
+    ):
         raise DataValidationError("budgets must be positive and unique")
-    if not config.candidate_sizes or any(item <= 0 for item in config.candidate_sizes) or len(config.candidate_sizes) != len(set(config.candidate_sizes)):
+    if (
+        not config.candidate_sizes
+        or any(not isinstance(item, int) or item <= 0 for item in config.candidate_sizes)
+        or len(config.candidate_sizes) != len(set(config.candidate_sizes))
+    ):
         raise DataValidationError("candidate_sizes must be positive and unique")
+    if not config.selectors:
+        raise DataValidationError("selectors must not be empty")
+    if len(config.selectors) != len(set(config.selectors)):
+        raise DataValidationError("selectors must be unique")
     unknown_selectors = sorted(set(config.selectors) - set(DEFAULT_SELECTORS))
     if unknown_selectors:
         raise DataValidationError(f"unknown selectors: {', '.join(unknown_selectors)}")
+    if not config.objectives:
+        raise DataValidationError("objectives must not be empty")
+    if len(config.objectives) != len(set(config.objectives)):
+        raise DataValidationError("objectives must be unique")
     unknown_objectives = sorted(set(config.objectives) - set(DEFAULT_OBJECTIVES))
     if unknown_objectives:
         raise DataValidationError(f"unknown objectives: {', '.join(unknown_objectives)}")
-    if not config.selectors:
-        raise DataValidationError("selectors must not be empty")
-    if not config.objectives:
-        raise DataValidationError("objectives must not be empty")
-    if any(value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
+    if any(not math.isfinite(value) or value < 0 for value in config.combined_lambdas) or len(config.combined_lambdas) != len(set(config.combined_lambdas)):
         raise DataValidationError("combined_lambdas must be nonnegative and unique")
     if "combined" in config.objectives and not config.combined_lambdas:
         raise DataValidationError("combined_lambdas must be nonnegative and unique")

@@ -167,6 +167,57 @@ def test_run_experiment_allows_empty_lambdas_without_combined_objective(tmp_path
     assert labels == {"submodular_coverage"}
 
 
+@pytest.mark.parametrize("lambda_value", [float("nan"), float("inf")])
+def test_run_experiment_rejects_nonfinite_combined_lambdas(tmp_path, lambda_value):
+    output_dir = tmp_path / "bad-lambda-run"
+
+    with pytest.raises(DataValidationError, match="combined_lambdas"):
+        run_experiment(
+            ExperimentConfig(
+                data_dir="proj/data/fixtures",
+                output_dir=str(output_dir),
+                budgets=(18,),
+                candidate_sizes=(3,),
+                selectors=("budgeted_greedy",),
+                objectives=("combined",),
+                combined_lambdas=(lambda_value,),
+                seed=13,
+                optimal_max_items=3,
+            )
+        )
+
+    assert not output_dir.exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("budgets", (12.5,), "budgets"),
+        ("candidate_sizes", (3.5,), "candidate_sizes"),
+        ("selectors", ("top_ranked", "top_ranked"), "selectors"),
+        ("objectives", ("combined", "combined"), "objectives"),
+    ],
+)
+def test_run_experiment_rejects_direct_config_values_that_cli_rejects(tmp_path, field, value, message):
+    output_dir = tmp_path / f"bad-{field}-run"
+    config_kwargs = {
+        "data_dir": "proj/data/fixtures",
+        "output_dir": str(output_dir),
+        "budgets": (18,),
+        "candidate_sizes": (3,),
+        "selectors": ("top_ranked",),
+        "objectives": ("combined",),
+        "seed": 13,
+        "optimal_max_items": 3,
+    }
+    config_kwargs[field] = value
+
+    with pytest.raises(DataValidationError, match=message):
+        run_experiment(ExperimentConfig(**config_kwargs))
+
+    assert not output_dir.exists()
+
+
 def test_runtime_units_reflect_selector_work(tmp_path):
     output_dir = tmp_path / "runtime-run"
     run_experiment(
