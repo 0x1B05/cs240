@@ -129,6 +129,8 @@ def run_experiment(config: ExperimentConfig) -> dict:
 def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
     if output_path.is_symlink():
         raise DataValidationError(f"output path is a symlink: {output_path}")
+    if _path_has_symlink_parent(output_path):
+        raise DataValidationError(f"output parent path is a symlink: {output_path.parent}")
     if output_path.exists() and output_path.is_dir():
         raise DataValidationError(f"output path is not a file: {output_path}")
     _validate_output_file_outside_input_dir(output_path, data_dir)
@@ -278,13 +280,12 @@ def _candidate_file_matches_sample_manifest(candidates_path: Path, dataset: Data
     rows = read_jsonl(candidates_path)
     candidate_query_ids = {_candidate_text(row, "query_id", row_number) for row_number, row in enumerate(rows, 1)}
     candidate_top_ns = {_candidate_positive_int(row, "top_n", row_number) for row_number, row in enumerate(rows, 1)}
-    manifest_rows = read_jsonl(manifest_path)
-    manifest_query_ids = {_manifest_query_id(row, row_number) for row_number, row in enumerate(manifest_rows, 1)}
-    dataset_query_ids = {query.query_id for query in dataset.queries}
-    if not manifest_query_ids <= dataset_query_ids:
-        unknown = sorted(manifest_query_ids - dataset_query_ids)
-        raise DataValidationError(f"sample manifest references unknown query_id: {unknown}")
     try:
+        manifest_rows = read_jsonl(manifest_path)
+        manifest_query_ids = {_manifest_query_id(row, row_number) for row_number, row in enumerate(manifest_rows, 1)}
+        dataset_query_ids = {query.query_id for query in dataset.queries}
+        if not manifest_query_ids <= dataset_query_ids:
+            return False
         config = _read_run_config(config_path)
         config_query_ids = set(_config_list(config, "query_ids", item_type=str))
         config_candidate_sizes = set(_config_list(config, "candidate_sizes", item_type=int))
@@ -297,6 +298,15 @@ def _candidate_file_matches_sample_manifest(candidates_path: Path, dataset: Data
         and candidate_top_ns == config_candidate_sizes
         and config.get("candidates_fingerprint") == _candidate_rows_fingerprint(rows)
     )
+
+
+def _path_has_symlink_parent(path: Path) -> bool:
+    for parent in path.parents:
+        if parent == parent.parent:
+            break
+        if parent.is_symlink():
+            return True
+    return False
 
 
 def _read_run_config(path: Path) -> dict:
