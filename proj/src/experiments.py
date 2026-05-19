@@ -24,6 +24,7 @@ from .data import (
 from .features import FeatureSet, build_features
 from .metrics import evaluate_selection
 from .objectives import Objective, combined_objective, coverage_objective, diversity_objective
+from .paths import has_symlink_parent
 from .retrieval import retrieve_top_n
 from .selectors import budgeted_greedy, exhaustive_optimal, mmr, relevance_ratio, seeded_random, top_ranked
 
@@ -129,7 +130,7 @@ def run_experiment(config: ExperimentConfig) -> dict:
 def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[dict]:
     if output_path.is_symlink():
         raise DataValidationError(f"output path is a symlink: {output_path}")
-    if _path_has_symlink_parent(output_path):
+    if has_symlink_parent(output_path):
         raise DataValidationError(f"output parent path is a symlink: {output_path.parent}")
     if output_path.exists() and output_path.is_dir():
         raise DataValidationError(f"output path is not a file: {output_path}")
@@ -298,15 +299,6 @@ def _candidate_file_matches_sample_manifest(candidates_path: Path, dataset: Data
         and candidate_top_ns == config_candidate_sizes
         and config.get("candidates_fingerprint") == _candidate_rows_fingerprint(rows)
     )
-
-
-def _path_has_symlink_parent(path: Path) -> bool:
-    for parent in path.parents:
-        if parent == parent.parent:
-            break
-        if parent.is_symlink():
-            return True
-    return False
 
 
 def _read_run_config(path: Path) -> dict:
@@ -559,6 +551,8 @@ def _validate_output_file_outside_input_dir(output_path: Path, input_dir: Path) 
 def _prepare_output_dir(output_dir: Path, *, overwrite: bool, input_paths: tuple[Path, ...] = ()) -> None:
     if output_dir.is_symlink() and not overwrite:
         raise DataValidationError(f"output path is a symlink: {output_dir}")
+    if has_symlink_parent(output_dir):
+        raise DataValidationError(f"output parent path is a symlink: {output_dir.parent}")
     if output_dir.exists() and not output_dir.is_dir():
         raise DataValidationError(f"output path is not a directory: {output_dir}")
     _validate_output_does_not_contain_inputs(output_dir, input_paths)

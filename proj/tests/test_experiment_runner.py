@@ -247,6 +247,30 @@ def test_run_experiment_rejects_symlinked_output_dir_without_overwrite(tmp_path)
     assert not (target_dir / "config.json").exists()
 
 
+def test_run_experiment_rejects_symlinked_output_parent(tmp_path):
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    output_parent = tmp_path / "run-parent-link"
+    output_parent.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output parent path is a symlink"):
+        run_experiment(
+            ExperimentConfig(
+                data_dir="proj/data/fixtures",
+                output_dir=str(output_parent / "run"),
+                budgets=(12,),
+                candidate_sizes=(3,),
+                selectors=("top_ranked",),
+                objectives=("combined",),
+                seed=13,
+                optimal_max_items=3,
+                overwrite=False,
+            )
+        )
+
+    assert not (target_dir / "run" / "config.json").exists()
+
+
 def test_run_experiment_overwrite_unlinks_symlink_without_following_target(tmp_path):
     target_dir = tmp_path / "outside-target"
     target_dir.mkdir()
@@ -746,6 +770,29 @@ def test_select_evaluate_allows_output_beside_candidate_file(tmp_path):
     assert summary["queries"] == 3
     assert candidates_path.exists()
     assert (output_dir / "per_query_metrics.jsonl").exists()
+
+
+def test_select_evaluate_rejects_symlinked_output_parent(tmp_path):
+    candidates_dir = tmp_path / "staged"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    output_parent = tmp_path / "selected-parent-link"
+    output_parent.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output parent path is a symlink"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=output_parent / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
+
+    assert not (target_dir / "selected" / "config.json").exists()
 
 
 def test_generate_candidates_rejects_output_inside_data_dir(tmp_path):

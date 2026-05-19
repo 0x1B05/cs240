@@ -185,6 +185,40 @@ def test_prepare_embedded_rejects_symlinked_output_dir_without_overwrite(tmp_pat
     assert not (target_dir / "queries.jsonl").exists()
 
 
+def test_prepare_embedded_rejects_symlinked_output_parent(tmp_path):
+    raw_path = _raw_path(tmp_path)
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where is the Louvre?",
+                "answer": "Paris",
+                "evidence_ids": ["d1"],
+                "contexts": [{"id": "d1", "text": "The Louvre is in Paris."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    output_parent = tmp_path / "processed-parent-link"
+    output_parent.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output parent path is a symlink"):
+        prepare_multihop_cache(
+            raw_queries=raw_path,
+            raw_corpus=None,
+            output_dir=output_parent / "processed",
+            schema="embedded",
+            sample_size=None,
+            seed=13,
+            overwrite=False,
+        )
+
+    assert not (target_dir / "processed" / "queries.jsonl").exists()
+
+
 def test_prepare_embedded_overwrite_replaces_symlinked_output_dir(tmp_path):
     raw_path = _raw_path(tmp_path)
     raw_path.write_text(

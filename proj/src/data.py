@@ -9,6 +9,8 @@ import re
 import shutil
 from typing import Iterable
 
+from .paths import has_symlink_parent
+
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 
@@ -116,6 +118,8 @@ def prepare_multihop_cache(
         raise DataValidationError("sample_size must be positive")
     if output_dir.is_symlink() and not overwrite:
         raise DataValidationError(f"output path is a symlink: {output_dir}")
+    if has_symlink_parent(output_dir):
+        raise DataValidationError(f"output parent path is a symlink: {output_dir.parent}")
     if output_dir.exists() and not output_dir.is_dir():
         raise DataValidationError(f"output path is not a directory: {output_dir}")
     if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
