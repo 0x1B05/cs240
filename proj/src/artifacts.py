@@ -56,6 +56,8 @@ def generate_artifacts(run_dir: Path, output_dir: Path) -> list[Path]:
 def _read_csv(path: Path) -> list[dict]:
     if not path.exists():
         raise ArtifactValidationError(f"missing required artifact input: {path}")
+    if not path.is_file():
+        raise ArtifactValidationError(f"artifact input is not a file: {path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     if not rows:

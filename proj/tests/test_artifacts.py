@@ -203,6 +203,16 @@ def test_generate_artifacts_rejects_incompatible_metric_schema(tmp_path):
         generate_artifacts(run_dir, tmp_path / "artifacts")
 
 
+def test_generate_artifacts_rejects_directory_metric_input(tmp_path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "aggregate_metrics.csv").mkdir()
+    (run_dir / "optimal_checks.csv").write_text("status\nexecuted\n", encoding="utf-8")
+
+    with pytest.raises(ArtifactValidationError, match="artifact input is not a file"):
+        generate_artifacts(run_dir, tmp_path / "artifacts")
+
+
 def test_generate_artifacts_rejects_empty_numeric_cells(tmp_path):
     run_dir = tmp_path / "run"
     rows = [
