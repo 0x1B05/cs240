@@ -107,6 +107,35 @@ def test_baselines_are_budget_feasible_and_seeded_random_is_stable():
     assert seeded_random(features, budget, seed=7) == seeded_random(features, budget, seed=7)
 
 
+def test_top_ranked_stops_at_first_ranked_candidate_that_does_not_fit():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("rank1", "rank2", "rank3"),
+        costs=(6, 6, 4),
+        relevance=(1.0, 1.0, 1.0),
+        similarity=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+    )
+
+    result = top_ranked(features, budget=10)
+
+    assert result.indices == (0,)
+    assert result.total_cost == 6
+
+
+def test_mmr_uses_plain_score_not_cost_normalized_score():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("long-high", "short-low"),
+        costs=(9, 1),
+        relevance=(0.9, 0.2),
+        similarity=((1.0, 0.0), (0.0, 1.0)),
+    )
+
+    result = mmr(features, budget=10, lambda_value=1.0)
+
+    assert result.indices[0] == 0
+
+
 def test_mmr_stops_when_best_remaining_score_is_nonpositive():
     features = FeatureSet(
         query_id="q",
