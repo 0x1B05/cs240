@@ -67,6 +67,8 @@ def token_cost(text: str) -> int:
 def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         raise DataValidationError(f"missing input file: {path}")
+    if not path.is_file():
+        raise DataValidationError(f"input path is not a file: {path}")
     rows: list[dict] = []
     with path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
