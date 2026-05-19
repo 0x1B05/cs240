@@ -587,6 +587,31 @@ def test_select_evaluate_ignores_malformed_adjacent_sample_metadata_for_full_can
     assert summary["queries"] == 3
 
 
+def test_select_evaluate_ignores_invalid_adjacent_sample_manifest_for_full_candidates(tmp_path):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    (candidates_dir / "sample_manifest.jsonl").write_text("not-json\n", encoding="utf-8")
+    (candidates_dir / "config.json").write_text(
+        json.dumps({"candidate_sizes": [3], "candidates_fingerprint": "stale", "query_ids": ["q1", "q2"]}),
+        encoding="utf-8",
+    )
+
+    summary = select_evaluate(
+        data_dir=Path("proj/data/fixtures"),
+        candidates_path=candidates_path,
+        output_dir=tmp_path / "selected",
+        budget=18,
+        seed=13,
+        selectors=("top_ranked",),
+        objectives=("combined",),
+        overwrite=False,
+    )
+
+    assert summary["queries"] == 3
+
+
 def test_select_evaluate_rejects_partial_candidate_file_with_stale_sample_manifest(tmp_path):
     candidates_dir = tmp_path / "candidates"
     candidates_dir.mkdir()
@@ -753,6 +778,31 @@ def test_generate_candidates_rejects_symlink_output_path(tmp_path):
         generate_candidates(Path("proj/data/fixtures"), output_path, top_n=3)
 
     assert target_file.read_text(encoding="utf-8") == "outside\n"
+
+
+def test_generate_candidates_rejects_symlink_output_parent(tmp_path):
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    output_parent = tmp_path / "candidate-link-dir"
+    output_parent.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output parent path is a symlink"):
+        generate_candidates(Path("proj/data/fixtures"), output_parent / "candidates.jsonl", top_n=3)
+
+    assert not (target_dir / "candidates.jsonl").exists()
+
+
+def test_generate_candidates_rejects_nested_symlink_output_parent(tmp_path):
+    target_dir = tmp_path / "outside-target"
+    target_dir.mkdir()
+    (target_dir / "nested").mkdir()
+    output_parent = tmp_path / "candidate-link-dir"
+    output_parent.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(DataValidationError, match="output parent path is a symlink"):
+        generate_candidates(Path("proj/data/fixtures"), output_parent / "nested" / "candidates.jsonl", top_n=3)
+
+    assert not (target_dir / "nested" / "candidates.jsonl").exists()
 
 
 def test_run_experiment_labels_multiple_combined_lambdas(tmp_path):
