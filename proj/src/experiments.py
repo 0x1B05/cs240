@@ -272,17 +272,46 @@ def load_candidate_file(path: Path, dataset: Dataset, require_all_queries: bool 
 
 def _candidate_file_matches_sample_manifest(candidates_path: Path, dataset: Dataset) -> bool:
     manifest_path = candidates_path.parent / "sample_manifest.jsonl"
-    if not manifest_path.exists():
+    config_path = candidates_path.parent / "config.json"
+    if not manifest_path.exists() or not config_path.exists():
         return False
     rows = read_jsonl(candidates_path)
     candidate_query_ids = {_candidate_text(row, "query_id", row_number) for row_number, row in enumerate(rows, 1)}
+    candidate_top_ns = {_candidate_positive_int(row, "top_n", row_number) for row_number, row in enumerate(rows, 1)}
     manifest_rows = read_jsonl(manifest_path)
     manifest_query_ids = {_manifest_query_id(row, row_number) for row_number, row in enumerate(manifest_rows, 1)}
     dataset_query_ids = {query.query_id for query in dataset.queries}
     if not manifest_query_ids <= dataset_query_ids:
         unknown = sorted(manifest_query_ids - dataset_query_ids)
         raise DataValidationError(f"sample manifest references unknown query_id: {unknown}")
-    return candidate_query_ids == manifest_query_ids and manifest_query_ids != dataset_query_ids
+    config = _read_run_config(config_path)
+    config_query_ids = set(_config_list(config, "query_ids", item_type=str))
+    config_candidate_sizes = set(_config_list(config, "candidate_sizes", item_type=int))
+    return (
+        config.get("sample_size") is not None
+        and candidate_query_ids == manifest_query_ids
+        and manifest_query_ids == config_query_ids
+        and manifest_query_ids != dataset_query_ids
+        and candidate_top_ns == config_candidate_sizes
+        and config.get("candidates_fingerprint") == _candidate_rows_fingerprint(rows)
+    )
+
+
+def _read_run_config(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise DataValidationError(f"invalid run config JSON: {path}") from exc
+    if not isinstance(payload, dict):
+        raise DataValidationError(f"run config must be an object: {path}")
+    return payload
+
+
+def _config_list(config: dict, key: str, *, item_type) -> list:
+    values = config.get(key)
+    if not isinstance(values, list) or any(not isinstance(item, item_type) for item in values):
+        raise DataValidationError(f"run config {key} must be a list of {item_type.__name__}")
+    return values
 
 
 def _manifest_query_id(row: dict, row_number: int) -> str:
@@ -447,7 +476,7 @@ def _run_with_candidates(
     optimal_rows = _sort_optimal_rows(optimal_rows)
     aggregate_rows = aggregate_metric_rows(metric_rows)
 
-    _write_config(output_dir / "config.json", config, dataset)
+    _write_config(output_dir / "config.json", config, dataset, candidate_rows)
     write_jsonl(output_dir / "sample_manifest.jsonl", [{"query_id": query.query_id} for query in sorted(dataset.queries, key=lambda item: item.query_id)])
     write_jsonl(output_dir / "candidates.jsonl", candidate_rows)
     write_jsonl(output_dir / "selections.jsonl", selection_rows)
@@ -705,10 +734,11 @@ def _sort_optimal_rows(rows: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda row: (row["top_n"], row["budget"], row["selector"], row["objective"], row["lambda_value"], row["query_id"]))
 
 
-def _write_config(path: Path, config: ExperimentConfig, dataset: Dataset) -> None:
+def _write_config(path: Path, config: ExperimentConfig, dataset: Dataset, candidate_rows: list[dict]) -> None:
     payload = {
         "budgets": list(config.budgets),
         "candidate_sizes": list(config.candidate_sizes),
+        "candidates_fingerprint": _candidate_rows_fingerprint(candidate_rows),
         "combined_lambdas": list(config.combined_lambdas),
         "data_dir": config.data_dir,
         "dataset_name": config.dataset_name,
@@ -723,6 +753,15 @@ def _write_config(path: Path, config: ExperimentConfig, dataset: Dataset) -> Non
         "split": config.split,
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _candidate_rows_fingerprint(rows: list[dict]) -> str:
+    payload = "\n".join(json.dumps(row, sort_keys=True, separators=(",", ":")) for row in sorted(rows, key=_candidate_fingerprint_key))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _candidate_fingerprint_key(row: dict) -> tuple:
+    return (row.get("top_n"), row.get("query_id"), row.get("rank"), row.get("doc_id"))
 
 
 def _write_csv(path: Path, rows: list[dict], columns: tuple[str, ...]) -> None:
