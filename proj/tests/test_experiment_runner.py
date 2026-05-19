@@ -511,6 +511,29 @@ def test_select_evaluate_rejects_partial_candidate_file_without_sample_manifest(
         )
 
 
+def test_select_evaluate_rejects_partial_candidate_file_with_stale_sample_manifest(tmp_path):
+    candidates_dir = tmp_path / "candidates"
+    candidates_dir.mkdir()
+    candidates_path = candidates_dir / "candidates.jsonl"
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
+    rows = [row for row in read_jsonl(candidates_path) if row["query_id"] != "q3"]
+    candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+    (candidates_dir / "sample_manifest.jsonl").write_text(
+        "\n".join(json.dumps({"query_id": query_id}) for query_id in ["q1", "q2"]) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataValidationError, match="candidate file missing queries"):
+        select_evaluate(
+            data_dir=Path("proj/data/fixtures"),
+            candidates_path=candidates_path,
+            output_dir=tmp_path / "selected",
+            budget=18,
+            seed=13,
+            overwrite=False,
+        )
+
+
 def test_random_seeded_baseline_is_salted_by_query_id(tmp_path):
     output_dir = tmp_path / "random-run"
     run_experiment(
@@ -786,21 +809,33 @@ def test_select_evaluate_rejects_truncated_candidate_blocks(tmp_path):
         )
 
 
-def test_select_evaluate_rejects_inconsistent_sampled_candidate_query_sets(tmp_path):
+def test_select_evaluate_rejects_partial_candidate_file_with_stale_sample_config(tmp_path):
     candidates_dir = tmp_path / "candidates"
     candidates_dir.mkdir()
     candidates_path = candidates_dir / "candidates.jsonl"
-    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=4)
+    generate_candidates(Path("proj/data/fixtures"), candidates_path, top_n=3)
     source_rows = read_jsonl(candidates_path)
-    rows = [dict(row, top_n=3) for row in source_rows if row["query_id"] in {"q1", "q2"} and row["rank"] <= 3]
-    rows.extend(row for row in source_rows if row["query_id"] == "q1")
+    rows = [row for row in source_rows if row["query_id"] != "q3"]
     candidates_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
     (candidates_dir / "sample_manifest.jsonl").write_text(
         "\n".join(json.dumps({"query_id": query_id}) for query_id in ["q1", "q2"]) + "\n",
         encoding="utf-8",
     )
+    (candidates_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "candidate_sizes": [3],
+                "candidates_fingerprint": "stale",
+                "query_ids": ["q1", "q2"],
+                "sample_size": 2,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
-    with pytest.raises(DataValidationError, match="inconsistent query sets"):
+    with pytest.raises(DataValidationError, match="candidate file missing queries"):
         select_evaluate(
             data_dir=Path("proj/data/fixtures"),
             candidates_path=candidates_path,
