@@ -54,7 +54,14 @@ def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> 
 
 def top_ranked(features: FeatureSet, budget: int) -> SelectionResult:
     _validate_budget(budget)
-    return _select_in_order(features, range(len(features.doc_ids)), budget)
+    selected: list[int] = []
+    total_cost = 0
+    for item in range(len(features.doc_ids)):
+        if total_cost + features.costs[item] > budget:
+            break
+        selected.append(item)
+        total_cost += features.costs[item]
+    return SelectionResult(tuple(selected), total_cost)
 
 
 def relevance_ratio(features: FeatureSet, budget: int) -> SelectionResult:
@@ -90,8 +97,7 @@ def mmr(features: FeatureSet, budget: int, lambda_value: float = 0.7) -> Selecti
 
         def score(item: int) -> float:
             redundancy = max((features.similarity[item][chosen] for chosen in selected), default=0.0)
-            mmr_score = lambda_value * features.relevance[item] - (1.0 - lambda_value) * redundancy
-            return mmr_score / features.costs[item]
+            return lambda_value * features.relevance[item] - (1.0 - lambda_value) * redundancy
 
         best = min(feasible, key=lambda item: (-score(item), features.doc_ids[item]))
         if score(best) <= 0:
