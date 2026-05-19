@@ -136,6 +136,8 @@ def generate_candidates(data_dir: Path, output_path: Path, top_n: int) -> list[d
     if output_path.exists() and output_path.is_dir():
         raise DataValidationError(f"output path is not a file: {output_path}")
     _validate_output_file_outside_input_dir(output_path, data_dir)
+    if output_path.exists():
+        raise DataValidationError(f"output path exists; choose a new path: {output_path}")
     dataset = load_dataset(data_dir)
     rows = [{**row, "top_n": top_n} for row in candidates_to_rows(retrieve_top_n(dataset, top_n))]
     write_jsonl(output_path, rows)

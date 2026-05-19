@@ -39,7 +39,9 @@ class SubmodularObjective:
         selected_set = _normalize_selection(selected, len(self.features.doc_ids))
         total = 0.0
         for representative in range(len(self.features.doc_ids)):
-            total += max(self.features.similarity[representative][item] for item in selected_set)
+            total += self.features.relevance[representative] * max(
+                self.features.similarity[representative][item] for item in selected_set
+            )
         return total
 
     def diversity(self, selected: Iterable[int]) -> float:

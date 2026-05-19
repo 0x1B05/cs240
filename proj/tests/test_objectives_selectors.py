@@ -36,6 +36,19 @@ def test_diversity_marginal_gain_has_diminishing_returns():
     assert first_gain > later_gain
 
 
+def test_coverage_weights_representatives_by_query_relevance():
+    features = FeatureSet(
+        query_id="q",
+        doc_ids=("evidence", "off_topic_hub"),
+        costs=(1, 1),
+        relevance=(1.0, 0.0),
+        similarity=((1.0, 0.1), (0.1, 1.0)),
+    )
+    objective = coverage_objective(features)
+
+    assert objective.value((0,)) > objective.value((1,))
+
+
 def test_negative_lambda_rejected():
     features = _fixture_features()
 
