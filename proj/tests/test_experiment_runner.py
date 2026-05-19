@@ -866,6 +866,16 @@ def test_generate_candidates_rejects_directory_output_path(tmp_path):
         generate_candidates(Path("proj/data/fixtures"), output_path, top_n=3)
 
 
+def test_generate_candidates_rejects_existing_output_file(tmp_path):
+    output_path = tmp_path / "candidates.jsonl"
+    output_path.write_text("preserve me\n", encoding="utf-8")
+
+    with pytest.raises(DataValidationError, match="output path exists"):
+        generate_candidates(Path("proj/data/fixtures"), output_path, top_n=3)
+
+    assert output_path.read_text(encoding="utf-8") == "preserve me\n"
+
+
 def test_generate_candidates_rejects_symlink_output_path(tmp_path):
     target_file = tmp_path / "outside.jsonl"
     target_file.write_text("outside\n", encoding="utf-8")
