@@ -239,7 +239,7 @@ def load_candidate_file(path: Path, dataset: Dataset, require_all_queries: bool 
             raise DataValidationError(f"candidate row references unknown doc_id: {doc_id}")
         rank = _candidate_positive_int(row, "rank", row_number)
         top_n = _candidate_positive_int(row, "top_n", row_number)
-        token_cost = _candidate_positive_int(row, "token_cost", row_number)
+        candidate_token_cost = _candidate_positive_int(row, "token_cost", row_number)
         if rank > top_n:
             raise DataValidationError(f"candidate rank exceeds top_n at row {row_number}")
         try:
@@ -250,9 +250,9 @@ def load_candidate_file(path: Path, dataset: Dataset, require_all_queries: bool 
         canonical_doc = doc_by_id[doc_id]
         if text != canonical_doc.text:
             raise DataValidationError(f"candidate text does not match canonical corpus for doc_id={doc_id} at row {row_number}")
-        if token_cost != _canonical_token_cost(canonical_doc.text):
+        if candidate_token_cost != token_cost(canonical_doc.text):
             raise DataValidationError(f"candidate token_cost does not match canonical corpus for doc_id={doc_id} at row {row_number}")
-        candidate = Candidate(query_id=query_id, doc_id=doc_id, rank=rank, score=score, text=text, token_cost=token_cost)
+        candidate = Candidate(query_id=query_id, doc_id=doc_id, rank=rank, score=score, text=text, token_cost=candidate_token_cost)
         grouped.setdefault(top_n, {}).setdefault(query_id, []).append(candidate)
 
     for top_n, by_query in grouped.items():
@@ -390,10 +390,6 @@ def _candidate_positive_int(row: dict, field: str, row_number: int) -> int:
     if value <= 0:
         raise DataValidationError(f"candidate {field} must be a positive integer at row {row_number}")
     return value
-
-
-def _canonical_token_cost(text: str) -> int:
-    return token_cost(text)
 
 
 def _run_with_candidates(
