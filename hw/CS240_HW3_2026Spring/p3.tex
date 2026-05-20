@@ -1,0 +1,92 @@
+\problem{}
+\medskip
+
+\textbf{Monotone 3-SAT:} A \emph{3-SAT formula} is a Boolean formula in which each clause contains exactly three literals. A clause is called \emph{monotone} if all of its literals are positive or all of its literals are negative. For example, $(x \vee y \vee z)$ and $(\neg x \vee \neg y \vee \neg z)$ are monotone clauses, while $(x \vee y \vee \neg z)$ is not. As usual, a clause is satisfied if at least one of its literals evaluates to true.
+
+Given a 3-SAT formula $\phi$ in which every clause of $\phi$ is monotone, decide whether $\phi$ has a satisfying assignment. Prove that \textsc{Monotone 3-SAT} is NP-complete.
+\medskip
+
+
+\solution{
+\textbf{1. Membership in NP.}
+The problem is in NP, since a truth assignment can be checked by evaluating all
+clauses.
+
+\textbf{2. Known NP-complete problem.}
+We reduce from \textsc{3-SAT}, which is NP-complete.
+
+\textbf{3. Polynomial-time reduction.}
+Let $\phi$ be an instance of \textsc{3-SAT}, where every clause has exactly
+three literals. We transform each clause separately. Clauses that are already
+monotone are left unchanged. We use the usual convention that the three
+literals are three literal occurrences; the statement does not require them to
+be three distinct variables.
+
+For a mixed clause with two positive literals and one negative literal, write it
+as
+\[
+(x\vee y\vee \neg z).
+\]
+Introduce a fresh variable $u$ for this clause and replace the clause by
+\[
+(x\vee y\vee u)\ \wedge\ (\neg u\vee \neg z\vee \neg z).
+\]
+Both clauses are monotone.
+
+For a mixed clause with one positive literal and two negative literals, write it
+as
+\[
+(x\vee \neg y\vee \neg z).
+\]
+Introduce a fresh variable $u$ for this clause and replace the clause by
+\[
+(x\vee u\vee u)\ \wedge\ (\neg u\vee \neg y\vee \neg z).
+\]
+Again both clauses are monotone. The construction adds at most one fresh
+variable and two clauses for each original clause, so the size only increases
+linearly.
+
+\textbf{4. Correctness of the reduction.}
+Now we check that each replacement preserves satisfiability.
+
+Consider first a clause
+\[
+C=(x\vee y\vee \neg z)
+\]
+and its replacement
+\[
+C'=(x\vee y\vee u)\wedge(\neg u\vee \neg z\vee \neg z).
+\]
+If $C$ is true and at least one of $x,y$ is true, set $u=\mathrm{false}$. If
+both $x,y$ are false, then $z$ must be false, and we set $u=\mathrm{true}$.
+In both cases $C'$ is true. Conversely, if $C'$ is true, then either $x$ or $y$
+is true, in which case $C$ is true, or both $x,y$ are false. In the latter case
+the first clause forces $u=\mathrm{true}$, and then the second clause forces
+$z=\mathrm{false}$. Thus $C$ is also true.
+
+The other mixed case is symmetric. For
+\[
+C=(x\vee \neg y\vee \neg z)
+\]
+with replacement
+\[
+C'=(x\vee u\vee u)\wedge(\neg u\vee \neg y\vee \neg z),
+\]
+if $C$ is true, set $u=\mathrm{false}$ when $x$ is true, and set
+$u=\mathrm{true}$ otherwise. Conversely, if $C'$ is true and $x$ is false, then
+the first clause forces $u=\mathrm{true}$, so the second clause forces at least
+one of $\neg y,\neg z$ to be true. Hence $C$ is true.
+
+So an assignment satisfying $\phi$ can be extended to the new variables, and any
+satisfying assignment of the new formula restricts to a satisfying assignment of
+$\phi$. Therefore
+\[
+\phi\text{ is satisfiable}
+\quad\Longleftrightarrow\quad
+\phi'\text{ is satisfiable}.
+\]
+Hence \textsc{Monotone 3-SAT} is NP-hard. It is also in NP, so it is
+NP-complete.
+}
+
+\newpage

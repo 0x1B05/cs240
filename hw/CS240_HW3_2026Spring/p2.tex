@@ -1,0 +1,62 @@
+\problem{}
+ShanghaiTech is planning a night security patrol system on campus.
+The campus is modeled as an undirected graph $G=(V,E)$, where each vertex represents an area, and an edge between two vertices means that the two areas are directly connected.
+
+If a patrol point is placed in an area, then that patrol point can monitor both the area itself and all areas directly connected to it.
+
+The university would like to place at most $k$ patrol points so that every area on campus is monitored.
+
+Formally, given an undirected graph $G=(V,E)$ and a positive integer $k$, decide whether there exists a subset $S\subseteq V$ such that
+\begin{itemize}
+	\item $|S|\le k$, and
+	\item for every vertex $v\in V$, either $v\in S$, or there exists some $u\in S$ such that $(u,v)\in E$.
+\end{itemize}
+
+Prove that this decision problem is NP-complete.
+\solution{
+\textbf{1. Membership in NP.}
+For a proposed set $S$, we check $|S|\le k$ and then check every
+vertex to see whether it is in $S$ or has a neighbor in $S$.
+
+\textbf{2. Known NP-complete problem.}
+We reduce from \textsc{Vertex Cover}, which is NP-complete.
+
+\textbf{3. Polynomial-time reduction.}
+Let $(G,k)$ be a \textsc{Vertex Cover} instance, where $G=(V,E)$. We first
+ignore isolated vertices, since they are irrelevant for vertex cover.
+
+Construct a graph $G'=(V',E')$ as follows. Keep all vertices and edges of $G$.
+For every edge $e=\{u,v\}\in E$, add a new vertex $x_e$ and two edges
+$\{x_e,u\}$ and $\{x_e,v\}$. Thus
+\[
+V'=V\cup \{x_e:e\in E\}.
+\]
+The new parameter is still $k$. This construction is polynomial time.
+
+\textbf{4. Correctness of the reduction.}
+Now suppose $G$ has a vertex cover $C$ with $|C|\le k$. We show that the same
+set $C$ dominates $G'$. For each new vertex $x_e$, at least one endpoint of
+$e$ is in $C$, so $x_e$ is dominated. For an original vertex $v$, either
+$v\in C$, or $v$ has an incident edge $\{v,u\}$ and the cover property forces
+some endpoint of this edge to be in $C$. Since $v\notin C$ in this case, we
+must have $u\in C$, so $v$ is dominated by $u$. Thus $C$ is a dominating set of
+size at most $k$ in $G'$.
+
+For the other direction, let $D$ be a dominating set of $G'$ with $|D|\le k$.
+If $D$ contains a new vertex $x_e$, where $e=\{u,v\}$, replace $x_e$ by one of
+its endpoints, say $u$. This does not increase the size and does not destroy
+domination: $x_e$ is dominated by $u$, the endpoint $u$ is dominated by itself,
+the other endpoint $v$ is dominated by $u$ because $\{u,v\}$ is an original
+edge, and $x_e$ has no other neighbors. Repeating this replacement, we obtain a
+dominating set $D'\subseteq V$ with $|D'|\le k$.
+
+For any original edge $e=\{u,v\}$, the new vertex $x_e$ must be dominated by
+$D'$. Since $D'\subseteq V$ and $x_e$ is adjacent only to $u$ and $v$, at least
+one of $u,v$ belongs to $D'$. Therefore every edge of $G$ is covered by $D'$.
+
+So $G$ has a vertex cover of size at most $k$ iff $G'$ has a dominating set of
+size at most $k$. Therefore the patrol-point problem is NP-hard. Since it is
+also in NP, it is NP-complete.
+}
+
+\newpage

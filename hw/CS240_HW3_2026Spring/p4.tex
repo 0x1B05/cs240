@@ -1,0 +1,81 @@
+\problem{} 
+\par Given a finite set of items $I$, where each item $i \in I$ has a positive integer size $s(i) \in \mathbb{Z}^{+}$, and two integer bin capacities $B_1$ and $B_2$. Is there a way to partition the set $I$ into two disjoint subsets $I_1$ and $I_2$ such that every item belongs to exactly one subset, and
+\[
+\sum_{i\in I_1}s(i)\le B_1
+\qquad\text{and}\qquad
+\sum_{i\in I_2}s(i)\le B_2?
+\]
+Prove this problem is NP-complete.
+
+\par \noindent
+\textit{Hint: You may use a reduction from the NP-complete problem Subset Sum.}
+
+\solution{
+\textbf{1. Membership in NP.}
+The problem is in NP. Given $(I_1,I_2)$, we can check that it is a partition of
+$I$ and compute both total sizes.
+
+\textbf{2. Known NP-complete problem.}
+We reduce from \textsc{Subset Sum}, which is NP-complete.
+
+\textbf{3. Polynomial-time reduction.}
+Let $(a_1,a_2,\ldots,a_n,T)$ be a \textsc{Subset Sum} instance. Let
+\[
+A=\sum_{i=1}^n a_i.
+\]
+We may assume $T\le A$, since if $T>A$ the \textsc{Subset Sum} instance is
+trivially a NO-instance and can be mapped to the fixed NO-instance consisting
+of one item of size $3$ and capacities $B_1=B_2=1$.
+
+For each number $a_j$, create one item $i_j$ with size $s(i_j)=a_j$. Set
+\[
+B_1=T
+\qquad\text{and}\qquad
+B_2=A-T.
+\]
+This is a polynomial-time construction.
+
+\textbf{4. Correctness of the reduction.}
+If the subset sum instance has a subset $S\subseteq \{1,2,\ldots,n\}$ with
+\[
+\sum_{j\in S}a_j=T.
+\]
+Put the corresponding items into $I_1$ and all other items into $I_2$. Then
+\[
+\sum_{i\in I_1}s(i)=T=B_1
+\]
+and
+\[
+\sum_{i\in I_2}s(i)=A-T=B_2.
+\]
+So the two-bin instance is feasible.
+
+Conversely, suppose the two-bin instance has a feasible partition $(I_1,I_2)$.
+Since every item is placed in exactly one of the two sets,
+\[
+\sum_{i\in I_1}s(i)+\sum_{i\in I_2}s(i)=A.
+\]
+Feasibility gives
+\[
+\sum_{i\in I_1}s(i)\le T
+\qquad\text{and}\qquad
+\sum_{i\in I_2}s(i)\le A-T.
+\]
+If $\sum_{i\in I_1}s(i)<T$, then
+\[
+\sum_{i\in I_2}s(i)=A-\sum_{i\in I_1}s(i)>A-T,
+\]
+contradicting feasibility. Therefore
+\[
+\sum_{i\in I_1}s(i)=T.
+\]
+Thus the numbers corresponding to $I_1$ form a subset whose sum is exactly
+$T$.
+
+Therefore the subset sum instance is a YES-instance iff the constructed
+partition instance is a YES-instance. Hence the problem is NP-hard. Since it is
+also in NP, it is NP-complete.
+}
+
+
+\newpage

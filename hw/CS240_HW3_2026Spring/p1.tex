@@ -1,0 +1,70 @@
+\problem{}
+
+\noindent\textbf{Given:}
+\begin{itemize}
+	\item A set of communication links 
+	\[
+	L=\{\ell_1,\ell_2,\dots,\ell_n\}.
+	\]
+	\item A set of interfering pairs
+	\[
+	I=\{(\ell_{a_1},\ell_{b_1}),(\ell_{a_2},\ell_{b_2}),\dots,(\ell_{a_m},\ell_{b_m})\}\subseteq L\times L,
+	\]
+	where each pair $(\ell_i,\ell_j)\in I$ means that links $\ell_i$ and $\ell_j$ cannot be activated simultaneously.
+	\item An integer $k$.
+\end{itemize}
+
+\noindent\textbf{Question:}
+
+Does there exist a subset $L' \subseteq L$ such that:
+\begin{enumerate}
+	\item $|L'| \ge k$, and
+	\item for every interfering pair $(\ell_i,\ell_j)\in I$, at most one of $\ell_i$ or $\ell_j$ belongs to $L'$?
+\end{enumerate}
+
+Prove that this problem is NP-complete.
+
+
+\solution{
+\textbf{1. Membership in NP.}
+Given a subset $L'\subseteq L$, we only need to
+check whether $|L'|\ge k$ and whether any pair in $I$ has both endpoints in
+$L'$. This can be done by scanning all pairs in $I$.
+
+\textbf{2. Known NP-complete problem.}
+We reduce from \textsc{Independent Set}, which is NP-complete.
+
+\textbf{3. Polynomial-time reduction.}
+Given an instance $(G,k)$ of \textsc{Independent Set}, where $G=(V,E)$, create
+one link $\ell_v$ for every vertex $v\in V$. Let
+\[
+L=\{\ell_v:v\in V\}.
+\]
+For every edge $\{u,v\}\in E$, add the interfering pair $(\ell_u,\ell_v)$ to
+$I$. The integer $k$ is unchanged. The construction is polynomial.
+
+\textbf{4. Correctness of the reduction.}
+If $G$ has an independent set $S$ with $|S|\ge k$, choose the corresponding
+links
+\[
+L'=\{\ell_v:v\in S\}.
+\]
+No two vertices in $S$ are connected by an edge, so no two chosen links form an
+interfering pair. Therefore $L'$ is feasible and has size at least $k$.
+
+Conversely, suppose there is a feasible set of links $L'$ with $|L'|\ge k$.
+Take the corresponding vertices
+\[
+S=\{v\in V:\ell_v\in L'\}.
+\]
+Then $|S|=|L'|\ge k$. If two vertices in $S$ were adjacent in $G$, their two
+links would be an interfering pair contained in $L'$, which is impossible.
+Hence $S$ is an independent set.
+
+Thus the original graph has an independent set of size at least $k$ iff the
+constructed link instance has a feasible set of at least $k$ links. Hence the
+problem is NP-hard. Together with the membership in NP, it is NP-complete.
+}
+
+
+\newpage

@@ -1,0 +1,73 @@
+\problem{}
+Consider an $m \times n$ grid. Each cell is either empty, contains a black piece, or contains a white piece. You are allowed to remove some of the pieces. The question is whether it is possible to obtain a configuration such that
+\begin{itemize}
+	\item each row contains at least one piece, and
+	\item no column contains both black and white pieces.
+\end{itemize}
+
+Prove that this problem is NP-complete.
+\solution{
+\textbf{1. Membership in NP.}
+The problem is in NP. After the pieces to be removed are specified, we can scan
+all rows and columns and check the two required conditions.
+
+\textbf{2. Known NP-complete problem.}
+We reduce from \textsc{Monotone 3-SAT}, which is NP-complete by Problem 3.
+
+\textbf{3. Polynomial-time reduction.}
+Let $\phi$ be a monotone 3-SAT formula with variables
+$x_1,x_2,\ldots,x_n$ and clauses $C_1,C_2,\ldots,C_m$. We construct an
+$m\times n$ grid. The rows correspond to clauses and the columns correspond to
+variables.
+
+For each clause $C_r$:
+\begin{itemize}
+	\item If $C_r$ is a positive clause, say
+	\[
+	C_r=(x_a\vee x_b\vee x_c),
+	\]
+	then put black pieces in row $r$ and columns $a,b,c$.
+	\item If $C_r$ is a negative clause, say
+	\[
+	C_r=(\neg x_a\vee \neg x_b\vee \neg x_c),
+	\]
+	then put white pieces in row $r$ and columns $a,b,c$.
+\end{itemize}
+All other cells are empty. If a variable appears more than once in a clause, a
+single piece in the corresponding cell is enough, since duplicate literals do
+not change the truth value of the clause. The construction is polynomial.
+
+\textbf{4. Correctness of the reduction.}
+Suppose first that $\phi$ has a satisfying assignment. We remove pieces column
+by column:
+\begin{itemize}
+	\item if $x_j=\mathrm{true}$, keep all black pieces in that column and remove
+	all white pieces in that column;
+	\item if $x_j=\mathrm{false}$, keep all white pieces in that column and remove
+	all black pieces in that column.
+\end{itemize}
+After this operation, no column contains both a black and a white piece. Now
+consider any row $r$. If $C_r$ is a positive clause, it is satisfied only if at
+least one of its variables is true, so at least one black piece remains in row
+$r$. If $C_r$ is a negative clause, it is satisfied only if at least one of its
+variables is false, so at least one white piece remains in row $r$. Thus every
+row contains at least one remaining piece.
+
+Conversely, suppose the grid can be made valid. Define an assignment from the
+remaining pieces. If column $j$ contains a black piece, set
+$x_j=\mathrm{true}$. If it contains a white piece, set $x_j=\mathrm{false}$.
+This is well-defined because a valid column cannot contain both colors. If a
+column contains no remaining piece, assign the variable arbitrarily.
+
+Now consider any clause row $r$. If $C_r$ is positive, then row $r$ originally
+contains only black pieces. Since at least one piece remains in that row, some
+black piece remains in the column of a variable that appears in $C_r$. That
+variable is assigned true, so $C_r$ is satisfied. If $C_r$ is negative, the same
+argument using white pieces shows that at least one variable in $C_r$ is
+assigned false, so $C_r$ is satisfied. Therefore all clauses of $\phi$ are
+satisfied.
+
+Hence $\phi$ is satisfiable iff the constructed grid instance is feasible. Since
+this source problem is NP-complete, this grid problem is NP-hard. It is also in
+NP, so it is NP-complete.
+}
