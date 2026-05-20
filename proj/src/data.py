@@ -357,13 +357,15 @@ def _read_records(path: Path) -> list[dict]:
 
 
 def _embedded_docs(row: dict) -> list[dict]:
+    docs: list[dict] = []
     for key in ("candidates", "contexts", "documents"):
         value = row.get(key)
         if value is None:
             continue
-        if not isinstance(value, list) or not value:
+        if not isinstance(value, list):
             raise DataValidationError(f"{key} must be a nonempty list")
-        docs: list[dict] = []
+        if not value:
+            continue
         for item in value:
             if isinstance(item, dict):
                 docs.append(item)
@@ -371,6 +373,7 @@ def _embedded_docs(row: dict) -> list[dict]:
                 docs.append({"text": item})
             else:
                 raise DataValidationError(f"{key} entries must be objects or strings")
+    if docs:
         return docs
     raise DataValidationError("embedded schema requires candidates, contexts, or documents")
 
