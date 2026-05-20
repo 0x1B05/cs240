@@ -81,6 +81,41 @@ def test_prepare_embedded_multihop_cache_is_deterministic(tmp_path):
     assert load_dataset(output_dir).queries[1].query == "Which city hosts the Louvre?"
 
 
+def test_prepare_embedded_merges_multiple_document_pools(tmp_path):
+    raw_path = _raw_path(tmp_path)
+    raw_path.write_text(
+        json.dumps(
+            {
+                "id": "q1",
+                "question": "Where is the evidence?",
+                "answer": "In contexts",
+                "evidence_ids": ["ctx-evidence"],
+                "candidates": [{"id": "cand-distractor", "text": "A distractor candidate."}],
+                "contexts": [{"id": "ctx-evidence", "text": "The evidence context."}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "processed"
+
+    prepare_multihop_cache(
+        raw_queries=raw_path,
+        raw_corpus=None,
+        output_dir=output_dir,
+        schema="embedded",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+
+    corpus_ids = {row["doc_id"] for row in read_jsonl(output_dir / "corpus.jsonl")}
+    query = read_jsonl(output_dir / "queries.jsonl")[0]
+
+    assert {"cand-distractor", "ctx-evidence"} <= corpus_ids
+    assert query["evidence_ids"] == ["ctx-evidence"]
+
+
 @pytest.mark.parametrize("overwrite", [False, True])
 def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
     raw_path = _raw_path(tmp_path)
