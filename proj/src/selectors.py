@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import random
+
+from .data import DataValidationError
+from .features import FeatureSet
+from .objectives import Objective
+
+
+@dataclass(frozen=True)
+class SelectionResult:
+    indices: tuple[int, ...]
+    total_cost: int
+    objective_value: float | None = None
+
+
+def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> SelectionResult:
+    _validate_budget(budget)
+    _validate_objective(objective)
+    selected: list[int] = []
+    remaining = set(range(len(features.doc_ids)))
+    total_cost = 0
+
+    while remaining:
+        feasible = [item for item in remaining if total_cost + features.costs[item] <= budget]
+        if not feasible:
+            break
+        best = min(
+            feasible,
+            key=lambda item: (
+                -(objective.marginal_gain(selected, item) / features.costs[item]),
+                -objective.marginal_gain(selected, item),
+                features.costs[item],
+                features.doc_ids[item],
+            ),
+        )
+        gain = objective.marginal_gain(selected, best)
+        if gain <= 0:
+            break
+        selected.append(best)
+        total_cost += features.costs[best]
+        remaining.remove(best)
+
+    greedy = SelectionResult(tuple(selected), total_cost, objective.value(selected))
+    singleton = _best_feasible_singleton(features, objective, budget)
+    if singleton.objective_value is not None and greedy.objective_value is not None:
+        if singleton.objective_value > greedy.objective_value:
+            return singleton
+        if singleton.objective_value == greedy.objective_value and (singleton.total_cost, singleton.indices) < (greedy.total_cost, greedy.indices):
+            return singleton
+    return greedy
+
+
+def top_ranked(features: FeatureSet, budget: int) -> SelectionResult:
+    _validate_budget(budget)
+    selected: list[int] = []
+    total_cost = 0
+    for item in range(len(features.doc_ids)):
+        if total_cost + features.costs[item] > budget:
+            break
+        selected.append(item)
+        total_cost += features.costs[item]
+    return SelectionResult(tuple(selected), total_cost)
+
+
+def relevance_ratio(features: FeatureSet, budget: int) -> SelectionResult:
+    _validate_budget(budget)
+    order = sorted(
+        range(len(features.doc_ids)),
+        key=lambda item: (-(features.relevance[item] / features.costs[item]), features.doc_ids[item]),
+    )
+    return _select_in_order(features, order, budget)
+
+
+def seeded_random(features: FeatureSet, budget: int, seed: int | None) -> SelectionResult:
+    _validate_budget(budget)
+    if seed is None:
+        raise DataValidationError("random baseline requires an explicit seed")
+    order = list(range(len(features.doc_ids)))
+    random.Random(seed).shuffle(order)
+    return _select_in_order(features, order, budget)
+
+
+def mmr(features: FeatureSet, budget: int, lambda_value: float = 0.7) -> SelectionResult:
+    _validate_budget(budget)
+    if not 0.0 <= lambda_value <= 1.0:
+        raise DataValidationError("MMR lambda must be in [0, 1]")
+
+    selected: list[int] = []
+    remaining = set(range(len(features.doc_ids)))
+    total_cost = 0
+    while remaining:
+        feasible = [item for item in remaining if total_cost + features.costs[item] <= budget]
+        if not feasible:
+            break
+
+        def score(item: int) -> float:
+            redundancy = max((features.similarity[item][chosen] for chosen in selected), default=0.0)
+            return lambda_value * features.relevance[item] - (1.0 - lambda_value) * redundancy
+
+        best = min(feasible, key=lambda item: (-score(item), features.doc_ids[item]))
+        if score(best) <= 0:
+            break
+        selected.append(best)
+        total_cost += features.costs[best]
+        remaining.remove(best)
+    return SelectionResult(tuple(selected), total_cost)
+
+
+def exhaustive_optimal(features: FeatureSet, objective: Objective, budget: int, max_items: int = 20) -> SelectionResult:
+    _validate_budget(budget)
+    size = len(features.doc_ids)
+    if size > max_items:
+        raise DataValidationError(f"exhaustive search refuses {size} items; max_items={max_items}")
+
+    best_indices: tuple[int, ...] = ()
+    best_value = 0.0
+    best_cost = 0
+    for mask in range(1 << size):
+        indices = tuple(item for item in range(size) if mask & (1 << item))
+        total_cost = sum(features.costs[item] for item in indices)
+        if total_cost > budget:
+            continue
+        value = objective.value(indices)
+        if value > best_value or (value == best_value and (total_cost, indices) < (best_cost, best_indices)):
+            best_indices = indices
+            best_value = value
+            best_cost = total_cost
+    return SelectionResult(best_indices, best_cost, best_value)
+
+
+def _select_in_order(features: FeatureSet, order, budget: int) -> SelectionResult:
+    selected: list[int] = []
+    total_cost = 0
+    for item in order:
+        if total_cost + features.costs[item] <= budget:
+            selected.append(item)
+            total_cost += features.costs[item]
+    return SelectionResult(tuple(selected), total_cost)
+
+
+def _best_feasible_singleton(features: FeatureSet, objective: Objective, budget: int) -> SelectionResult:
+    feasible = [item for item, cost in enumerate(features.costs) if cost <= budget]
+    if not feasible:
+        return SelectionResult((), 0, 0.0)
+    best = min(
+        feasible,
+        key=lambda item: (
+            -objective.value((item,)),
+            features.costs[item],
+            features.doc_ids[item],
+        ),
+    )
+    return SelectionResult((best,), features.costs[best], objective.value((best,)))
+
+
+def _validate_objective(objective: Objective) -> None:
+    if not callable(getattr(objective, "marginal_gain", None)) or not callable(getattr(objective, "value", None)):
+        raise DataValidationError("objective must implement marginal_gain() and value()")
+
+
+def _validate_budget(budget: int) -> None:
+    if budget <= 0:
+        raise DataValidationError("budget must be positive")

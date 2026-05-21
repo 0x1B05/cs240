@@ -1,0 +1,15 @@
+[project]
+name = "cs240-context-selection"
+version = "0.1.0"
+description = "Budgeted submodular context selection experiments for CS240."
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

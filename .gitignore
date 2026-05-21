@@ -1,6 +1,21 @@
 # Generated proposal output
 proj/proposal/proposal.pdf
 
+# Local agent/tooling state
+.humanize/
+
+# Python and uv environments
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.venv/
+proj/.venv/
+
+# Project experiment outputs
+proj/out/
+proj/report/figures/
+proj/report/*.pdf
+
 # LaTeX/Typst build artifacts
 *.aux
 *.bbl
