@@ -1,0 +1,15 @@
+[project]
+name = "cs240-workspace"
+version = "0.1.0"
+description = "Workspace tooling for CS240 project experiments."
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["proj/tests"]
+pythonpath = ["."]

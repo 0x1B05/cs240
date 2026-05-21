@@ -1,0 +1,8 @@
+{"doc_id":"d1","text":"Dijkstra's algorithm computes shortest paths in graphs with nonnegative edge weights."}
+{"doc_id":"d2","text":"A priority queue is commonly used to repeatedly select the unsettled vertex with minimum tentative distance."}
+{"doc_id":"d3","text":"Breadth first search explores an unweighted graph layer by layer from the source vertex."}
+{"doc_id":"d4","text":"The budgeted maximum coverage problem selects sets with costs to maximize covered elements under a budget."}
+{"doc_id":"d5","text":"Monotone submodular maximization under a knapsack constraint can be approximately solved by greedy methods."}
+{"doc_id":"d6","text":"Maximal marginal relevance reranks documents by trading off query relevance against redundancy and novelty."}
+{"doc_id":"d7","text":"Retrieval augmented generation inserts selected external passages into a language model context window."}
+{"doc_id":"d8","text":"Dense embeddings can represent semantic similarity but may add nondeterministic dependencies to a small experiment."}

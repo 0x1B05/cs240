@@ -1,111 +1,220 @@
-# 算法课程项目指南 (Course Project Guidelines)
+# Budgeted Context Selection Experiments
 
-## 1. 时间表 (Schedule)
+This directory contains the implementation for the CS240 project on budgeted submodular context selection for retrieval-augmented generation. The code turns retrieved candidate passages into token-budgeted context sets, compares Lin-Bilmes-style submodular objectives with rank/relevance/MMR/random baselines, and writes reproducible tables for the final report.
 
-- **项目提案提交 (Project Proposal Submission):** 5月17日截止。
-- **项目展示 (Project Presentation):** 第16周（具体日期步待定）。
-- **最终报告提交 (Final Report Submission):** 展示结束后提交。
+## Environment
 
-## 2. 团队信息与选题 (Team Information and Topic Selection)
+Use `uv` for dependency management and command execution from the repository root:
 
-- **团队规模:** 学生可自由组队，每组上限 **5人**。
-- **选题要求:** 组员须从附录（参考选题）中选择一个主题，或自行提出主题（需经批准）。
-- **提交政策:**
-- 提案须通过 Gradescope 提交：[点击跳转提交链接](https://www.gradescope.com/courses/1270636/assignments/8124428/submissions)。
-- 提交时，必须在平台上**勾选所有团队成员**。
-- 每组仅需由一人代表提交。
+```bash
+uv sync
+```
 
-- **项目范围:** 每个项目必须演示**经典算法如何解决现代问题**。核心在于理解这种联系，而非进行原创研究或追求最先进（SOTA）的性能。
+The core implementation uses Python standard-library code plus `pytest` for tests. No live LLM API call is required for the experiment.
 
-## 3. 项目里程碑与核心要求 (Project Milestones & Core Requirements)
+## Test
 
-项目分为五个阶段进行：
+```bash
+uv run pytest proj/tests
+```
 
-### 阶段 1：背景与相关工作 (Background and Related Work)
+The test suite covers fixture loading, MultiHop-style raw preparation, retrieval candidates, saved candidate-file validation, feature construction, objectives, selectors, metrics, the main experiment runner, artifact validation, overwrite refusal, invalid grids, optimal checks, sampled runs, and deterministic re-runs.
 
-- **引言:** 简要介绍所选的应用领域。
-- **算法总结:** 总结相关的算法公式或表达。
-- **文献综述:** 讨论几篇具有代表性的论文。
-- **论证:** 解释为什么所选问题在算法层面具有研究意义。
-- **预期:** 大约 1–2 页，以展示深度理解。
+## Local Data Preparation
 
-### 阶段 2：代表性论文/方法选择 (Method Selection)
+The canonical processed cache consumed by the runner is:
 
-- **形式化:** 解释所选论文的形式化问题定义。
-- **算法:** 详细描述核心算法。
-- **复杂度:** 对算法复杂度进行严谨的分析。
-- **目标:** 明确定义你打算复现哪些实验或结果。
+- `queries.jsonl`: `query_id`, `query`, `answer`, `evidence_ids`
+- `corpus.jsonl`: `doc_id`, `text`
+- `manifest.json`: source path, schema, sample size, seed, counts, and sampled query IDs
 
-### 阶段 3：复现与实现 (Reproduction and Implementation)
+Prepare the bundled MultiHop-style raw fixture without network access:
 
-- **实现:** 正确实现所选算法。
-- **结果:** 复现原论文中报告的至少部分结果。
-- **分析:** 解释复现过程中的任何偏差或失败。
-- **性能:** 对运行时间和可扩展性进行初步分析。
+```bash
+uv run python -m proj.src.cli prepare-data \
+  --raw-queries proj/data/fixtures/multihop_raw.jsonl \
+  --schema embedded \
+  --output-dir proj/data/processed/fixture-multihop \
+  --seed 13 \
+  --overwrite
+```
 
-### 阶段 4：实验评估 (Experimental Evaluation)
+For a split-format local dataset, provide one query file and one corpus file:
 
-- **运行时分析:** 测量并分析执行时间。
-- **可扩展性:** 评估算法在数据规模增加时的表现。
-- **对比:** 将你的实现与至少一个基准（Baseline）或变体进行比较。
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
 
-### 阶段 5：可选扩展（加分项） (Optional Extension)
+src = Path("proj/data/raw/multihop-rag/MultiHopRAG.json")
+dst = Path("proj/data/raw/multihop-rag/MultiHopRAG.with_evidence.json")
+rows = json.loads(src.read_text(encoding="utf-8"))
+filtered = [row for row in rows if isinstance(row.get("evidence_list"), list) and row["evidence_list"]]
+dst.write_text(json.dumps(filtered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(f"kept {len(filtered)} of {len(rows)} rows")
+PY
 
-- 算法优化或启发式改进。
-- 近似方法或更好的数据预处理。
-- 在其他数据集上测试或进行额外的对比实验。
+uv run python -m proj.src.cli prepare-data \
+  --raw-queries proj/data/raw/multihop-rag/MultiHopRAG.with_evidence.json \
+  --raw-corpus proj/data/raw/multihop-rag/corpus.json \
+  --schema split \
+  --sample-size 200 \
+  --seed 13 \
+  --output-dir proj/data/processed/multihop-q200 \
+  --overwrite
+```
 
-## 4. 提交交付物 (Submission Deliverables)
+Accepted query aliases are `query_id|id`, `query|question`, `answer`, and `evidence_ids|evidence_list`; if a raw query has no ID, a stable ID is derived from its row number and query text. Accepted document aliases are `doc_id|id|url` and `text|passage|contents|body`. The official MultiHop-RAG query file contains some records with empty `evidence_list`; the report run filters those records into `MultiHopRAG.with_evidence.json` before calling `prepare-data`. Sampling is query-level, deterministic, and never drops evidence documents for kept queries.
 
-### A. 项目提案 (Project Proposal)
+## Smoke Experiment
 
-一份 1–2 页的短文档，必须包含以下部分：
+```bash
+uv run python -m proj.src.cli run-smoke \
+  --output-dir proj/out/smoke \
+  --budget 18 \
+  --top-n 5
+```
 
-1. **选题:** 所选主题、简要动机及应用背景。
-2. **问题形式化:** 明确计算问题的定义，包括输入/输出描述和优化目标。
-3. **相关工作:** 至少两篇相关论文的简要总结，并确定用于复现的具体论文/方法。
-4. **算法与技术方案:** 涉及的核心算法（如 DP、图算法等）、计划的实现方法、预期数据集或评估设置。
-5. **项目范围与预期目标:** 计划复现的内容及可能的扩展改进。
-6. **团队信息:** 成员名单及预期的分工贡献。
+Expected outputs:
 
-### B. 实验报告 (Experimental Report)
+- `proj/out/smoke/candidates.jsonl`
+- `proj/out/smoke/selections.jsonl`
+- `proj/out/smoke/per_query_metrics.jsonl`
+- `proj/out/smoke/aggregate_metrics.csv`
+- `proj/out/smoke/optimal_checks.csv`
+- `proj/out/smoke/metrics.json`
+- `proj/out/smoke/summary.md`
 
-基于项目里程碑的综合报告，涵盖：
+The smoke workflow uses `proj/data/fixtures`, so it can run without network access.
 
-- 背景与相关工作。
-- 代表性论文/方法分析。
-- 复现与实现细节。
-- 实验评估（深入的性能与对比分析）。
-- 可选扩展（如有）。
+## Main Experiment
 
-### C. 源代码 (Source Code)
+Run the report-oriented fixture grid:
 
-- 核心算法的完整实现。
-- 关于如何运行复现实验的示例文档。
+```bash
+uv run python -m proj.src.cli run-experiment \
+  --data-dir proj/data/processed/fixture-multihop \
+  --output-dir proj/out/main/fixture_multihop_q3_s13 \
+  --dataset-name fixture-multihop \
+  --split fixture \
+  --budgets 12,18 \
+  --candidate-sizes 3,5 \
+  --selectors top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy \
+  --objectives coverage,diversity,combined \
+  --combined-lambdas 1.0 \
+  --seed 13 \
+  --optimal-max-items 5 \
+  --overwrite
+```
 
-## 5. 加分项 (Bonus Points)
+For a sampled MultiHop-RAG slice, point `--data-dir` at a processed cache and use a document-level budget grid. The official corpus records are full news articles, not short passages; in this cache the shortest document is about 860 simple word tokens, so the small fixture budgets `80,160,320` produce empty selections. The report-oriented real-data run uses `1600,3200,6400` to model selecting one to several articles under a context budget. `run-experiment --sample-size N --sample-seed S` applies a second deterministic query-level subset inside the processed cache, and `sample_manifest.jsonl` records the exact query IDs used by the run:
 
-奖励给表现最出色的团队：
+```bash
+uv run python -m proj.src.cli run-experiment \
+  --data-dir proj/data/processed/multihop-q200 \
+  --output-dir proj/out/main/multihop_q200_docbudget_s13 \
+  --dataset-name multihop-rag \
+  --split train-sample-docs \
+  --budgets 1600,3200,6400 \
+  --candidate-sizes 10,20,40 \
+  --selectors top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy \
+  --objectives coverage,diversity,combined \
+  --combined-lambdas 1.0 \
+  --seed 13 \
+  --sample-size 200 \
+  --sample-seed 13 \
+  --optimal-max-items 16 \
+  --overwrite
+```
 
-- **前 3 名:** +6 分
-- **前 5 名:** +3 分
-- **前 10 名:** +1 分
+The runner refuses to overwrite an existing output directory unless `--overwrite` is set. Re-running the same config with the same seed reproduces identical `candidates.jsonl`, `selections.jsonl`, `per_query_metrics.jsonl`, `aggregate_metrics.csv`, and `optimal_checks.csv`.
 
-## 附录：参考选题 (Appendix: Reference Topics)
+Stable run outputs:
 
-| #   | 主题 (Topic)         | 核心概念 (Concepts)                                | 应用场景 (Applications)      |
-| --- | -------------------- | -------------------------------------------------- | ---------------------------- |
-| 1   | 知识图谱摘要         | 顶点覆盖, 集合覆盖, 近似算法, 贪心方法             | 知识图谱, 搜索引擎, 信息检索 |
-| 2   | 社区检测 / 图划分    | 最小割, 最大流, 图划分, 谱方法                     | 社交网络, 推荐系统           |
-| 3   | 影响力最大化         | 贪心算法, 近似算法, 次模优化                       | 病毒式营销, 虚假信息分析     |
-| 4   | 恶意软件传播控制     | 支配集, 顶点覆盖, 最短路径, 网络优化               | 网络安全, 网络防御           |
-| 5   | 配送路线优化         | 旅行商问题 (TSP), 最小生成树, 近似算法, 贪心启发式 | 物流, 外卖配送, 交通运输     |
-| 6   | 二分图匹配           | 二分匹配, 匈牙利算法, 网络流                       | 推荐系统, 任务指派           |
-| 7   | 虚假评论 / 欺诈检测  | 团检测, 稠密子图, 图挖掘, NP-完全问题              | 欺诈检测, 评论垃圾邮件分析   |
-| 8   | 翻译编辑距离         | 动态规划, 序列比对, 字符串算法                     | 机器翻译, 拼写检查, NLP 评估 |
-| 9   | DNA / 蛋白质序列比对 | 最长公共子序列, 动态规划, 局部/全局比对            | 生物信息学, 计算生物学       |
-| 10  | 字幕或转录文本对齐   | 动态规划, 近似字符串匹配, 序列比对                 | 语音系统, 视频处理           |
-| 11  | LLM 上下文选择       | 背包问题, 集合覆盖, 近似算法                       | 检索增强生成 (RAG), LLM 系统 |
-| 12  | 对抗性路径规划       | 最短路径, A\* 搜索, 动态规划, 启发式搜索           | 对抗性机器学习, 安全系统     |
-| 13  | 内容感知图像缩放     | 动态规划, 最短路径, 贪心优化                       | 图像缩放（保持重要视觉内容） |
-| 14  | 基于图割的图像分割   | 最小割 / 最大流, 图构建, 能量最小化                | 图像中的目标分割             |
+- `config.json`: config snapshot and query IDs
+- `sample_manifest.jsonl`: query IDs in the processed run
+- `candidates.jsonl`: query ID, document ID, rank, score, text, token cost, and `top_n`
+- `selections.jsonl`: selected document IDs, selector/objective labels, budget, top-N, cost, objective value, and deterministic runtime units
+- `per_query_metrics.jsonl`: evidence recall/precision/F1, redundancy, budget utilization, selected count, and runtime units
+- `aggregate_metrics.csv` and `aggregate_metrics.md`: grouped mean/std metrics by method, budget, and candidate size
+- `optimal_checks.csv`: greedy-vs-optimal checks for candidate sets under the exhaustive-search threshold
+- `summary.md` and `run.log`
+
+## Staged Candidate Workflow
+
+The full runner regenerates candidates internally for convenience. The staged commands expose the candidate-file boundary required for validating intermediate retrieval outputs.
+
+Generate and save a candidate file:
+
+```bash
+uv run python -m proj.src.cli generate-candidates \
+  --data-dir proj/data/fixtures \
+  --output-path proj/out/candidates/fixture_top3.jsonl \
+  --top-n 3
+```
+
+Select and evaluate from that saved file:
+
+```bash
+uv run python -m proj.src.cli select-evaluate \
+  --data-dir proj/data/fixtures \
+  --candidates-path proj/out/candidates/fixture_top3.jsonl \
+  --output-dir proj/out/staged/fixture_top3_b18 \
+  --budget 18 \
+  --seed 13 \
+  --overwrite
+```
+
+The downstream stage validates the saved candidate schema before selection starts. Required columns are `query_id`, `doc_id`, `rank`, `score`, `text`, `token_cost`, and `top_n`; rows must reference known query/document IDs, ranks must be contiguous per query, and every query in the processed dataset must have candidates.
+
+## Report Artifacts
+
+Generate Markdown artifacts from a completed run:
+
+```bash
+uv run python -m proj.src.cli generate-artifacts \
+  --run-dir proj/out/main/multihop_q200_docbudget_s13 \
+  --output-dir proj/report/figures/multihop_q200_docbudget_s13
+```
+
+Expected artifact files:
+
+- `comparison_table.md`: evidence recall/F1, redundancy, budget utilization, and runtime units across methods
+- `metric_by_budget.md`: metric-vs-budget table
+- `runtime_by_candidate_size.md`: scalability table over candidate sizes
+- `optimal_checks.md`: small-instance greedy-vs-optimal summary
+
+Artifact generation validates required columns and fails fast if required methods are absent.
+
+Generate the publication-quality figure used by the report:
+
+```bash
+uv run --with matplotlib python proj/scripts/plot_report_figures.py
+```
+
+If the default PyPI index is slow or unreachable, use a mirror and keep the lock
+file frozen:
+
+```bash
+uv run --frozen \
+  --default-index https://pypi.tuna.tsinghua.edu.cn/simple \
+  --with matplotlib \
+  python proj/scripts/plot_report_figures.py
+```
+
+## Runtime and Storage Assumptions
+
+The bundled fixture workflow runs in under a second and writes small JSONL/CSV/Markdown files. The sampled 200-query MultiHop-RAG grid is designed for local CPU execution; runtime scales with `queries x budgets x candidate_sizes x methods`, and exhaustive optimal checks are skipped above `--optimal-max-items`.
+
+Output directories under `proj/out/`, raw downloaded data, processed real-data caches, generated PDFs, and intermediate figure tables are ignored by git. The source fixtures, code, tests, proposal, report source, figure script, and final report panel PNG are tracked.
+
+## Proposal Mapping
+
+- Topic 11, LLM context selection: `proj/src/cli.py` and `proj/src/experiments.py`
+- Knapsack/budget constraint and greedy approximation: `proj/src/selectors.py`
+- Coverage/diversity submodular objectives: `proj/src/objectives.py`
+- Retrieval and similarity features: `proj/src/retrieval.py`, `proj/src/features.py`
+- Evidence coverage, redundancy, runtime, and aggregate metrics: `proj/src/metrics.py`
+- Greedy-vs-optimal validation: `optimal_checks.csv` from `run-experiment`
+- Report-ready tables: `proj/src/artifacts.py`
+- Reproduction commands: this README and `proj/report/report.typ`
