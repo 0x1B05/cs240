@@ -221,8 +221,8 @@ def _prepare_split_rows(raw_queries: Path, raw_corpus: Path | None) -> tuple[lis
         _add_document(corpus_by_id, text_to_doc_id, document, text_to_doc_ids)
 
     query_rows: list[dict] = []
-    for row in _read_records(raw_queries):
-        query_id = _first_text(row, ("query_id", "id"))
+    for row_number, row in enumerate(_read_records(raw_queries), 1):
+        query_id = _query_id(row, row_number)
         query_text = _first_text(row, ("query", "question"))
         evidence_ids = _normalize_evidence_ids(row, corpus_by_id, text_to_doc_id, text_to_doc_ids=text_to_doc_ids, allow_materialize=False)
         query_rows.append(
@@ -399,9 +399,9 @@ def _normalize_evidence_ids(
     evidence_ids: list[str] = []
     for item in raw:
         if isinstance(item, dict):
-            if _has_any_text(item, ("doc_id", "id")):
-                evidence_id = _first_text(item, ("doc_id", "id"))
-                if _has_any_text(item, ("text", "passage", "contents")):
+            if _has_any_text(item, ("doc_id", "id", "url")):
+                evidence_id = _first_text(item, ("doc_id", "id", "url"))
+                if _has_any_text(item, ("text", "passage", "contents", "body")):
                     document = _normalize_doc_like(item, allow_hash_id=True)
                     if local_id_to_doc_id and document["doc_id"] in local_id_to_doc_id:
                         document = {**document, "doc_id": local_id_to_doc_id[document["doc_id"]]}
@@ -417,8 +417,8 @@ def _normalize_evidence_ids(
                     evidence_ids.append(evidence_id)
                 else:
                     raise DataValidationError(f"missing evidence in corpus: {evidence_id}")
-            elif _has_any_text(item, ("text", "passage", "contents")):
-                text = _normalize_text(_first_text(item, ("text", "passage", "contents")))
+            elif _has_any_text(item, ("text", "passage", "contents", "body")):
+                text = _normalize_text(_first_text(item, ("text", "passage", "contents", "body")))
                 doc_id = _resolve_text_evidence_id(text, text_to_doc_id, local_text_to_doc_id, local_text_to_doc_ids, text_to_doc_ids)
                 if doc_id is None:
                     if not allow_materialize:
@@ -508,16 +508,25 @@ def _resolve_text_evidence_id(
 
 
 def _normalize_doc_like(row: dict, *, allow_hash_id: bool) -> dict:
-    text = _normalize_text(_first_text(row, ("text", "passage", "contents")))
+    text = _normalize_text(_first_text(row, ("text", "passage", "contents", "body")))
     if token_cost(text) <= 0:
         raise DataValidationError("document text has nonpositive token cost")
     try:
-        doc_id = _first_text(row, ("doc_id", "id"))
+        doc_id = _first_text(row, ("doc_id", "id", "url"))
     except DataValidationError:
         if not allow_hash_id:
             raise
         doc_id = _hash_doc_id(text)
     return {"doc_id": doc_id, "text": text}
+
+
+def _query_id(row: dict, row_number: int) -> str:
+    try:
+        return _first_text(row, ("query_id", "id"))
+    except DataValidationError:
+        query_text = _first_text(row, ("query", "question"))
+        digest = hashlib.sha1(query_text.encode("utf-8")).hexdigest()[:12]
+        return f"query_{row_number:05d}_{digest}"
 
 
 def _add_document(
