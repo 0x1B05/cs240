@@ -116,6 +116,55 @@ def test_prepare_embedded_merges_multiple_document_pools(tmp_path):
     assert query["evidence_ids"] == ["ctx-evidence"]
 
 
+def test_prepare_split_accepts_official_multihoprag_url_body_schema(tmp_path):
+    raw_queries, raw_corpus = _split_raw_paths(tmp_path)
+    raw_corpus.write_text(
+        json.dumps(
+            {
+                "url": "https://example.com/article",
+                "title": "Example Article",
+                "body": "The article body contains the answer.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    raw_queries.write_text(
+        json.dumps(
+            {
+                "query": "Which article contains the answer?",
+                "answer": "Example Article",
+                "evidence_list": [
+                    {
+                        "url": "https://example.com/article",
+                        "title": "Example Article",
+                        "body": "The article body contains the answer.",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_multihop_cache(
+        raw_queries=raw_queries,
+        raw_corpus=raw_corpus,
+        output_dir=tmp_path / "processed",
+        schema="split",
+        sample_size=None,
+        seed=13,
+        overwrite=False,
+    )
+
+    query = read_jsonl(tmp_path / "processed" / "queries.jsonl")[0]
+    corpus = read_jsonl(tmp_path / "processed" / "corpus.jsonl")[0]
+
+    assert query["query_id"].startswith("query_")
+    assert query["evidence_ids"] == ["https://example.com/article"]
+    assert corpus == {"doc_id": "https://example.com/article", "text": "The article body contains the answer."}
+
+
 @pytest.mark.parametrize("overwrite", [False, True])
 def test_prepare_embedded_rejects_file_output_path(tmp_path, overwrite):
     raw_path = _raw_path(tmp_path)

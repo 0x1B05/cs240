@@ -12,8 +12,15 @@ __pycache__/
 proj/.venv/
 
 # Project experiment outputs
+proj/data/raw/
+proj/data/processed/*
+!proj/data/processed/fixture-multihop/
+!proj/data/processed/fixture-multihop/**
 proj/out/
-proj/report/figures/
+proj/report/figures/*
+!proj/report/figures/multihop_q200_docbudget_s13/
+proj/report/figures/multihop_q200_docbudget_s13/*
+!proj/report/figures/multihop_q200_docbudget_s13/*.png
 proj/report/*.pdf
 
 # LaTeX/Typst build artifacts

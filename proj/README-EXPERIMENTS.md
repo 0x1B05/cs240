@@ -42,9 +42,21 @@ uv run python -m proj.src.cli prepare-data \
 For a split-format local dataset, provide one query file and one corpus file:
 
 ```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+src = Path("proj/data/raw/multihop-rag/MultiHopRAG.json")
+dst = Path("proj/data/raw/multihop-rag/MultiHopRAG.with_evidence.json")
+rows = json.loads(src.read_text(encoding="utf-8"))
+filtered = [row for row in rows if isinstance(row.get("evidence_list"), list) and row["evidence_list"]]
+dst.write_text(json.dumps(filtered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(f"kept {len(filtered)} of {len(rows)} rows")
+PY
+
 uv run python -m proj.src.cli prepare-data \
-  --raw-queries proj/data/raw/multihop_queries.jsonl \
-  --raw-corpus proj/data/raw/multihop_corpus.jsonl \
+  --raw-queries proj/data/raw/multihop-rag/MultiHopRAG.with_evidence.json \
+  --raw-corpus proj/data/raw/multihop-rag/corpus.json \
   --schema split \
   --sample-size 200 \
   --seed 13 \
@@ -52,7 +64,7 @@ uv run python -m proj.src.cli prepare-data \
   --overwrite
 ```
 
-Accepted query aliases are `query_id|id`, `query|question`, `answer`, and `evidence_ids|evidence_list`. Accepted document aliases are `doc_id|id` and `text|passage|contents`. Sampling is query-level, deterministic, and never drops evidence documents for kept queries.
+Accepted query aliases are `query_id|id`, `query|question`, `answer`, and `evidence_ids|evidence_list`; if a raw query has no ID, a stable ID is derived from its row number and query text. Accepted document aliases are `doc_id|id|url` and `text|passage|contents|body`. The official MultiHop-RAG query file contains some records with empty `evidence_list`; the report run filters those records into `MultiHopRAG.with_evidence.json` before calling `prepare-data`. Sampling is query-level, deterministic, and never drops evidence documents for kept queries.
 
 ## Smoke Experiment
 
@@ -95,15 +107,15 @@ uv run python -m proj.src.cli run-experiment \
   --overwrite
 ```
 
-For a sampled MultiHop-RAG slice, point `--data-dir` at a processed cache and use the planned report grid. `run-experiment --sample-size N --sample-seed S` applies a second deterministic query-level subset inside the processed cache, and `sample_manifest.jsonl` records the exact query IDs used by the run:
+For a sampled MultiHop-RAG slice, point `--data-dir` at a processed cache and use a document-level budget grid. The official corpus records are full news articles, not short passages; in this cache the shortest document is about 860 simple word tokens, so the small fixture budgets `80,160,320` produce empty selections. The report-oriented real-data run uses `1600,3200,6400` to model selecting one to several articles under a context budget. `run-experiment --sample-size N --sample-seed S` applies a second deterministic query-level subset inside the processed cache, and `sample_manifest.jsonl` records the exact query IDs used by the run:
 
 ```bash
 uv run python -m proj.src.cli run-experiment \
   --data-dir proj/data/processed/multihop-q200 \
-  --output-dir proj/out/main/multihop_q200_s13 \
+  --output-dir proj/out/main/multihop_q200_docbudget_s13 \
   --dataset-name multihop-rag \
-  --split train-sample \
-  --budgets 80,160,320 \
+  --split train-sample-docs \
+  --budgets 1600,3200,6400 \
   --candidate-sizes 10,20,40 \
   --selectors top_ranked,relevance_ratio,random_seeded,mmr,budgeted_greedy \
   --objectives coverage,diversity,combined \
@@ -161,8 +173,8 @@ Generate Markdown artifacts from a completed run:
 
 ```bash
 uv run python -m proj.src.cli generate-artifacts \
-  --run-dir proj/out/main/fixture_multihop_q3_s13 \
-  --output-dir proj/report/figures/fixture_multihop_q3_s13
+  --run-dir proj/out/main/multihop_q200_docbudget_s13 \
+  --output-dir proj/report/figures/multihop_q200_docbudget_s13
 ```
 
 Expected artifact files:
@@ -174,11 +186,27 @@ Expected artifact files:
 
 Artifact generation validates required columns and fails fast if required methods are absent.
 
+Generate the publication-quality figure used by the report:
+
+```bash
+uv run --with matplotlib python proj/scripts/plot_report_figures.py
+```
+
+If the default PyPI index is slow or unreachable, use a mirror and keep the lock
+file frozen:
+
+```bash
+uv run --frozen \
+  --default-index https://pypi.tuna.tsinghua.edu.cn/simple \
+  --with matplotlib \
+  python proj/scripts/plot_report_figures.py
+```
+
 ## Runtime and Storage Assumptions
 
 The bundled fixture workflow runs in under a second and writes small JSONL/CSV/Markdown files. The sampled 200-query MultiHop-RAG grid is designed for local CPU execution; runtime scales with `queries x budgets x candidate_sizes x methods`, and exhaustive optimal checks are skipped above `--optimal-max-items`.
 
-Output directories under `proj/out/` and generated PDFs/figures are ignored by git. The source fixtures, code, tests, proposal, and report skeleton are tracked.
+Output directories under `proj/out/`, raw downloaded data, processed real-data caches, generated PDFs, and intermediate figure tables are ignored by git. The source fixtures, code, tests, proposal, report source, figure script, and final report panel PNG are tracked.
 
 ## Proposal Mapping
 
