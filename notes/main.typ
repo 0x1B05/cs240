@@ -6,10 +6,11 @@
   title: [CS240 算法设计与分析课程讲义],
   short_title: "CS240 Notes",
   abstract: [
-    本讲义根据课程 `Algorithm Design and Analysis` 的 Lecture 0 到 Lecture 16
+    本讲义根据课程 `Algorithm Design and Analysis` 的 Lecture 0 到 Lecture 22
     整理而成。内容按主题组织：导论、贪心、分治、动态规划、网络流，以及复杂性理论与特殊情形处理。每一章重点解释算法为什么成立、状态和贪心规则如何设计、证明时应抓住什么结构，以及不同算法范式之间的联系。后半部分整理归约、`P/NP/co-NP`、NP-complete、PSPACE、FPT，以及 NP-hard 问题的特殊结构处理方法。
+    新增部分覆盖 local search、Nash equilibrium、摊还分析、Fibonacci heap、随机算法、hashing 与 Bloom filter。
   ],
-  date: datetime(year: 2026, month: 4, day: 26),
+  date: datetime(year: 2026, month: 6, day: 2),
   authors: (
     (
       name: "0x1B05",
@@ -43,3 +44,7 @@
 #include "content/13-3dm-subset-sum.typ"
 #include "content/14-pspace.typ"
 #include "content/15-fpt-special-cases.typ"
+#include "content/16-local-search.typ"
+#include "content/17-amortized-analysis.typ"
+#include "content/18-randomized-algorithms.typ"
+#include "content/19-hashing-bloom.typ"
