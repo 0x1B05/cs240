@@ -1,0 +1,91 @@
+\problem{Random Audit without Replacement}
+
+A course has \(n\) homework submissions, and exactly \(r\) of them have formatting violations. The instructor randomly selects \(s\) distinct submissions for manual audit, using sampling without replacement. Assume \(0\le r\le n\) and \(0\le s\le n\).
+
+Let \(X\) be the number of selected submissions that have formatting violations.
+
+Answer the following questions:
+\begin{enumerate}[(a)]
+    \item Define suitable indicator random variables and compute \(\mathbb{E}[X]\).
+    \item Compute the probability that the audit finds no formatting violation.
+    \item Give a simple exponential upper bound for the probability in part (b), and use it to give a sufficient condition on \(s\) so that the instructor finds at least one violation with probability at least \(1-\delta\), where \(r>0\) and \(0<\delta<1\).
+\end{enumerate}
+
+\solution{
+\textbf{(a)}
+Number the \(r\) violating submissions as \(1,2,\ldots,r\). For each violating
+submission \(i\), define
+\[
+    X_i =
+    \begin{cases}
+    1, & \text{if submission } i \text{ is selected},\\
+    0, & \text{otherwise}.
+    \end{cases}
+\]
+Then
+\[
+    X=\sum_{i=1}^r X_i.
+\]
+Since the sample contains \(s\) submissions chosen uniformly without
+replacement,
+\[
+    \Pr[X_i=1]=\frac{s}{n}.
+\]
+By linearity of expectation,
+\[
+    \mathbb{E}[X]
+    =\sum_{i=1}^r \mathbb{E}[X_i]
+    =\sum_{i=1}^r \frac{s}{n}
+    =\frac{rs}{n}.
+\]
+
+\textbf{(b)}
+The audit finds no formatting violation iff all \(s\) selected submissions are
+chosen from the \(n-r\) clean submissions. Hence
+\[
+    \Pr[X=0]
+    =
+    \frac{\binom{n-r}{s}}{\binom{n}{s}},
+\]
+where the numerator is interpreted as \(0\) if \(s>n-r\).
+
+Equivalently, for \(s\le n-r\),
+\[
+    \Pr[X=0]
+    =
+    \prod_{i=0}^{s-1}\frac{n-r-i}{n-i}.
+\]
+
+\textbf{(c)}
+If \(s>n-r\), then the audit must select at least one violating submission, so
+\(\Pr[X=0]=0\). Thus assume \(s\le n-r\). Using the product form,
+\[
+    \frac{n-r-i}{n-i}
+    =1-\frac{r}{n-i}
+    \le 1-\frac{r}{n}.
+\]
+Therefore
+\[
+    \Pr[X=0]
+    \le
+    \left(1-\frac{r}{n}\right)^s
+    \le
+    e^{-rs/n}.
+\]
+
+Thus
+\[
+    \Pr[X\ge 1]=1-\Pr[X=0]\ge 1-e^{-rs/n}.
+\]
+It is sufficient to choose \(s\) such that
+\[
+    e^{-rs/n}\le \delta,
+\]
+or equivalently
+\[
+    s\ge \frac{n}{r}\ln\frac{1}{\delta}.
+\]
+If this bound is larger than \(n\), then sampling all \(n\) submissions also
+finds a violation with probability \(1\), since \(r>0\).
+}
+\newpage

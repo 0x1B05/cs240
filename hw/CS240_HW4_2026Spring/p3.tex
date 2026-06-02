@@ -1,0 +1,97 @@
+\problem{Archive with Tombstone Compaction}
+
+An online news platform stores articles in an array. Each array entry is either a live article or a tombstone. A tombstone means that the article has been deleted, but its array position has not yet been physically removed.
+
+The system also maintains a mapping from article IDs to array positions. Therefore, checking whether an ID corresponds to a live article and marking it as a tombstone can both be done in \(O(1)\) time. During compaction, the system also updates this mapping. Updating the mapping for a copied live article is included in the copying cost of that live article.
+
+Users can perform the following two external operations:
+\begin{itemize}
+    \item \textsc{Add}\((\textit{article})\): append the new article as a live article at the end of the array, and record the mapping from its ID to its array position.
+    \item \textsc{Remove}\((\textit{id})\): if the article with ID \(\textit{id}\) is still live, mark its entry as a tombstone. If this ID does not exist or is no longer live, perform only one lookup and return.
+\end{itemize}
+
+The system also has the following internal cleanup procedure:
+\begin{itemize}
+    \item \textsc{Compact}\(()\): scan the entire array, copy all live articles into a new array, discard all tombstones, and update the ID-to-position mapping.
+\end{itemize}
+\textsc{Compact}\(()\) is not directly called by users. It is automatically triggered by the system after a \textsc{Remove} operation.
+
+System rule: after each \textsc{Remove}, if the number of tombstones is strictly greater than the number of live articles, the system automatically executes \textsc{Compact}\(()\).
+
+Assume that appending an article costs \(1\), marking a tombstone costs \(1\), and scanning or copying one array entry costs \(1\).
+
+Answer the following questions:
+\begin{enumerate}[(a)]
+    \item Explain why a single \textsc{Remove} operation can have worst-case cost \(\Theta(n)\), where \(n\) is the array length immediately before the \textsc{Compact} operation triggered by this \textsc{Remove}.
+    \item Prove that the total cost of any \(m\) external operations is \(O(m)\).
+    \item Give a potential function based on the number of tombstones and prove an amortized \(O(1)\) bound.
+\end{enumerate}
+
+\solution{
+\textbf{(a)}
+A \textsc{Remove} operation may trigger \textsc{Compact}. If the array length is
+\(n\) immediately before this compaction, then \textsc{Compact} scans the whole
+array, which already costs \(\Theta(n)\). It may also copy many live articles.
+Hence a single \textsc{Remove} operation can have worst-case cost
+\(\Theta(n)\).
+
+\textbf{(b)}
+Let \(D\) be the number of tombstones and \(L\) be the number of live articles
+immediately after a \textsc{Remove} operation and before a possible compaction.
+Compaction is triggered only when
+\[
+    D>L.
+\]
+The cost of this compaction is at most the cost of scanning all entries plus
+the cost of copying all live entries:
+\[
+    (D+L)+L = D+2L.
+\]
+Since \(D>L\), this is less than \(3D\).
+
+Charge a constant number of credits to every successful \textsc{Remove} that
+creates a tombstone. One part pays for the constant cost of this
+\textsc{Remove}; the remaining credits stay with the tombstone. Each tombstone
+is discarded at the next compaction, and the above inequality shows that the
+tombstones present at that time can pay for the whole compaction cost. Each
+\textsc{Add} costs \(O(1)\), and a \textsc{Remove} of a nonexistent or already
+deleted ID also costs \(O(1)\). Therefore the total cost of any \(m\) external
+operations is \(O(m)\).
+
+\textbf{(c)}
+Let
+\[
+    \Phi = 3D,
+\]
+where \(D\) is the current number of tombstones in the array. Initially
+\(\Phi=0\), and \(\Phi\ge 0\) always.
+
+For \textsc{Add}, the actual cost is \(O(1)\), and \(D\) does not change. Thus
+the amortized cost is \(O(1)\).
+
+For an unsuccessful \textsc{Remove}, the operation only does a lookup and
+returns. Again \(D\) does not change, so the amortized cost is \(O(1)\).
+
+For a successful \textsc{Remove} that does not trigger compaction, the actual
+cost is \(O(1)\), and \(D\) increases by \(1\). Hence
+\[
+    \hat c = O(1)+3=O(1).
+\]
+
+Now consider a successful \textsc{Remove} that triggers compaction. Let \(D'\)
+and \(L'\) be the numbers of tombstones and live articles after the tombstone
+is created but before compaction. Then \(D'>L'\). The compaction cost is at
+most
+\[
+    D'+2L' < 3D'.
+\]
+Before this \textsc{Remove}, the number of tombstones was \(D'-1\), so the
+potential was \(3(D'-1)\). After compaction, the number of tombstones is \(0\),
+so the potential becomes \(0\). Therefore the amortized cost is at most
+\[
+    O(1) + (D'+2L') - 3(D'-1)
+    < O(1)+3.
+\]
+This is \(O(1)\). Hence every external operation has amortized cost \(O(1)\).
+}
+\newpage
