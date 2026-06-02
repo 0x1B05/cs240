@@ -1,0 +1,77 @@
+\problem{One-Round Random-Priority Conflict Filter}
+
+A system has a set of tasks. Some pairs of tasks conflict and cannot be selected simultaneously. This conflict relation is represented by a simple undirected graph \(G=(V,E)\): each vertex is a task, and each edge means that the two corresponding tasks conflict.
+
+The system performs the following randomized filtering step:
+\begin{enumerate}
+    \item Each vertex \(v\) independently chooses a priority \(p(v)\) uniformly at random from \([0,1]\).
+    \item Vertex \(v\) is selected if its priority is smaller than the priority of every neighbor of \(v\). Here a smaller numerical priority means a higher priority.
+\end{enumerate}
+
+Because the priorities are drawn from a continuous distribution, all priorities are distinct with probability \(1\). Let \(S\) be the set of selected vertices.
+
+Answer the following questions:
+\begin{enumerate}[(a)]
+    \item Prove that \(S\) is always an independent set.
+    \item For a fixed vertex \(v\), let \(\deg(v)\) be its degree. What is the probability that \(v\) is selected?
+    \item Let \(X=|S|\). Use indicator random variables to compute \(\mathbb{E}[X]\), and simplify the answer when \(G\) is \(d\)-regular.
+\end{enumerate}
+
+\solution{
+\textbf{(a)}
+Suppose for contradiction that \(S\) is not an independent set. Then there is
+an edge \(\{u,v\}\in E\) such that both \(u\) and \(v\) are selected.
+
+Since \(u\) is selected and \(v\) is its neighbor, we must have
+\[
+    p(u)<p(v).
+\]
+Since \(v\) is selected and \(u\) is its neighbor, we must also have
+\[
+    p(v)<p(u).
+\]
+This is impossible. Hence no two adjacent vertices can both be selected, and
+\(S\) is always an independent set.
+
+\textbf{(b)}
+Vertex \(v\) is selected iff its priority is the smallest among the
+\(\deg(v)+1\) vertices consisting of \(v\) and all its neighbors. These
+priorities are independent and drawn from the same continuous distribution, so
+each of the \(\deg(v)+1\) vertices is equally likely to have the smallest
+priority. Therefore
+\[
+    \Pr[v\in S]=\frac{1}{\deg(v)+1}.
+\]
+
+\textbf{(c)}
+For each vertex \(v\in V\), define the indicator random variable
+\[
+    X_v =
+    \begin{cases}
+    1, & \text{if } v\in S,\\
+    0, & \text{otherwise}.
+    \end{cases}
+\]
+Then
+\[
+    X=|S|=\sum_{v\in V}X_v.
+\]
+By linearity of expectation and part (b),
+\[
+    \mathbb{E}[X]
+    =
+    \sum_{v\in V}\mathbb{E}[X_v]
+    =
+    \sum_{v\in V}\Pr[v\in S]
+    =
+    \sum_{v\in V}\frac{1}{\deg(v)+1}.
+\]
+
+If \(G\) is \(d\)-regular, then \(\deg(v)=d\) for every \(v\), and therefore
+\[
+    \mathbb{E}[X]
+    =
+    \frac{|V|}{d+1}.
+\]
+}
+\newpage

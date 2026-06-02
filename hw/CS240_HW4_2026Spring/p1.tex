@@ -1,0 +1,88 @@
+\problem{Lazy Disk-Write Queue}
+
+A cloud storage system manages \(n\) data pages, numbered \(1,2,\ldots,n\). After a page is modified, it becomes a \emph{dirty page}, meaning that the page has unsaved contents that have not yet been written back to disk.
+
+The system maintains a Boolean array \(\texttt{dirty}[1\dots n]\), where \(\texttt{dirty}[i]=\texttt{true}\) means that page \(i\) has unsaved modifications. The system also maintains a FIFO queue \(Q\), whose entries are page IDs requested for write-back.
+
+The system supports the following two operations:
+\begin{itemize}
+    \item \textsc{Modify}\((i)\): set \(\texttt{dirty}[i] \leftarrow \texttt{true}\), and append \(i\) to the rear of \(Q\). Even if \(\texttt{dirty}[i]\) is already \(\texttt{true}\), this operation still appends another copy of \(i\) to \(Q\).
+    \item \textsc{FlushOne}\(()\): repeatedly remove the front entry \(j\) from \(Q\). If \(\texttt{dirty}[j]=\texttt{false}\), then this queue entry is stale and is discarded. If \(\texttt{dirty}[j]=\texttt{true}\), then page \(j\) is written back, \(\texttt{dirty}[j] \leftarrow \texttt{false}\), and \(j\) is returned. If \(Q\) becomes empty, the operation returns \(0\).
+\end{itemize}
+
+Each queue insertion, queue deletion, array access, and array assignment has cost \(1\). Writing back one dirty page also has cost \(1\).
+
+Answer the following questions:
+\begin{enumerate}[(a)]
+    \item Construct an operation sequence in which one call to \textsc{FlushOne}\(()\) has cost \(\Theta(m)\), where \(m\) is the number of operations performed so far.
+    \item Prove that the total running time of any sequence of \(m\) operations is \(O(m)\). Your proof should also explain why duplicate page IDs in \(Q\) do not break the bound.
+    \item Give a potential function and use the potential method to prove that both \textsc{Modify} and \textsc{FlushOne} have amortized running time \(O(1)\).
+\end{enumerate}
+
+\solution{
+\textbf{(a)}
+Take only one page, say page \(1\). First perform \(k\) operations
+\textsc{Modify}\((1)\). The queue now contains \(k\) copies of \(1\), and
+\(\texttt{dirty}[1]=\texttt{true}\).
+
+Now call \textsc{FlushOne}\(()\) once. It removes the first copy of \(1\),
+writes the page back, and sets \(\texttt{dirty}[1]\) to \(\texttt{false}\).
+There are still \(k-1\) copies of \(1\) left in the queue, but all of them are
+stale.
+
+The next call to \textsc{FlushOne}\(()\) removes all these \(k-1\) stale
+entries before returning \(0\). Hence this one operation costs
+\(\Theta(k)\). The number of external operations so far is \(m=k+2\), so the
+cost is \(\Theta(m)\).
+
+\textbf{(b)}
+Consider any sequence of \(m\) operations. Each call to \textsc{Modify}
+inserts exactly one entry into \(Q\), so the total number of queue insertions
+is at most \(m\). Each queue entry, once inserted, can be removed from \(Q\)
+at most once. Therefore the total number of queue deletions over the whole
+sequence is also at most \(m\).
+
+All other work is charged to these operations. A \textsc{Modify} operation
+does only a constant amount of work besides its queue insertion. During
+\textsc{FlushOne}, every loop iteration deletes one queue entry and checks the
+corresponding dirty bit. A successful flush also performs only constant extra
+work: one write-back and one assignment to the dirty bit.
+
+Thus the total cost is bounded by a constant times
+\[
+    \text{number of external operations}
+    + \text{number of queue insertions}
+    + \text{number of queue deletions},
+\]
+which is \(O(m)\).
+
+Duplicate page IDs do not hurt the bound. They only create more queue entries,
+but every duplicate entry was inserted by some previous \textsc{Modify}
+operation and is deleted at most once.
+
+\textbf{(c)}
+Let the potential be
+\[
+    \Phi = 3|Q|,
+\]
+where \(|Q|\) is the current number of entries in the queue. Clearly
+\(\Phi\ge 0\), and initially \(\Phi=0\).
+
+For \textsc{Modify}\((i)\), the actual cost is \(O(1)\), and the queue length
+increases by \(1\). Hence
+\[
+    \hat c = c + \Delta\Phi \le O(1)+3=O(1).
+\]
+
+For \textsc{FlushOne}\(()\), suppose it removes \(t\) queue entries. The actual
+cost is at most \(2t+O(1)\): for each removed entry we pay for deletion and
+checking the dirty bit, and there is only constant extra work if a dirty page
+is actually written back. The potential decreases by \(3t\). Hence
+\[
+    \hat c \le (2t+O(1))-3t=O(1).
+\]
+If the queue is already empty, the operation also has constant actual cost and
+zero change in potential. Therefore both operations have amortized cost
+\(O(1)\).
+}
+\newpage

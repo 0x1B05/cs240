@@ -1,0 +1,65 @@
+\problem{Triangular Calibration Monitor}
+
+A scientific monitoring device continuously receives samples. The operation \textsc{InsertSample}\((x)\) inserts one new sample and has base cost \(1\). Let \(N\) be the total number of samples inserted so far. Initially, \(N=0\).
+
+Whenever \(N\) becomes a triangular number, the device automatically performs one calibration. Define \(T_0=0\), and for \(q\ge 1\),
+\[
+    T_q = 1+2+\cdots+q = \frac{q(q+1)}{2}.
+\]
+When the \(q\)-th calibration is triggered, its cost is exactly \(q\). For example, after the 1st insertion the calibration cost is \(1\), after the 3rd insertion the calibration cost is \(2\), after the 6th insertion the calibration cost is \(3\), and after the 10th insertion the calibration cost is \(4\).
+
+Answer the following questions:
+\begin{enumerate}[(a)]
+    \item Given \(n\), how many calibrations occur during the first \(n\) insertions?
+    \item Use aggregate analysis to prove that the total cost of the first \(n\) insertions is \(O(n)\).
+    \item Use the accounting method to give a constant amortized charge for each insertion.
+\end{enumerate}
+
+\solution{
+\textbf{(a)}
+The calibrations occur exactly at the insertion numbers
+\[
+    T_1,T_2,\ldots,T_q
+\]
+that are at most \(n\). Therefore the number of calibrations is the largest
+integer \(q\) such that
+\[
+    T_q=\frac{q(q+1)}{2}\le n.
+\]
+Equivalently,
+\[
+    q=\left\lfloor \frac{\sqrt{8n+1}-1}{2}\right\rfloor .
+\]
+
+\textbf{(b)}
+Let
+\[
+    k=\left\lfloor \frac{\sqrt{8n+1}-1}{2}\right\rfloor .
+\]
+Then exactly \(k\) calibrations occur. The base cost of the \(n\) insertions is
+\(n\). The total calibration cost is
+\[
+    1+2+\cdots+k = T_k.
+\]
+By the definition of \(k\), we have \(T_k\le n\). Thus the total cost is
+\[
+    n+T_k \le 2n.
+\]
+So the total cost of the first \(n\) insertions is \(O(n)\).
+
+\textbf{(c)}
+Charge each insertion \(2\) units. One unit pays for the base insertion cost.
+The other unit is saved as credit for future calibration.
+
+Between the \((q-1)\)-st calibration and the \(q\)-th calibration, there are
+exactly
+\[
+    T_q-T_{q-1}=q
+\]
+insertions. These \(q\) insertions save exactly \(q\) units of credit, which is
+enough to pay for the \(q\)-th calibration.
+
+Therefore the credits never become negative, and a constant amortized charge
+of \(2\) per insertion is sufficient.
+}
+\newpage
