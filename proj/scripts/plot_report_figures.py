@@ -14,7 +14,8 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 
 RUN_DIR = Path("proj/out/main/multihop_q200_docbudget_s13")
-OUT_DIR = Path("proj/report/figures/multihop_q200_docbudget_s13")
+OUT_DIR = Path("proj/report/figures/multihop_q200_docbudget_s13_2")
+ARTIFACT_DIR = OUT_DIR
 AGGREGATE_CSV = RUN_DIR / "aggregate_metrics.csv"
 OPTIMAL_CSV = RUN_DIR / "optimal_checks.csv"
 
@@ -60,6 +61,27 @@ def read_csv(path: Path) -> list[dict[str, str]]:
         raise FileNotFoundError(f"Missing required input: {path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def read_markdown_table(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing required input: {path}")
+    rows: list[dict[str, str]] = []
+    header: list[str] | None = None
+    with path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if not cells or all(set(cell) <= {"-", ":"} for cell in cells):
+                continue
+            if header is None:
+                header = cells
+                continue
+            if len(cells) == len(header):
+                rows.append(dict(zip(header, cells, strict=True)))
+    return rows
 
 
 def as_int(row: dict[str, str], key: str) -> int:
@@ -347,14 +369,123 @@ def plot_scalability_optimality(
     save_figure(fig, "scalability_optimality")
 
 
+def plot_scalability_optimality_from_artifacts() -> None:
+    runtime_rows = read_markdown_table(ARTIFACT_DIR / "runtime_by_candidate_size.md")
+    optimal_rows = read_markdown_table(ARTIFACT_DIR / "optimal_checks.md")
+
+    fig, axes = plt.subplots(1, 2, figsize=(8.6, 3.55), dpi=300)
+    budget = 6400
+    runtime_methods = (
+        ("top_ranked", "Top-ranked", "#0072B2", "o"),
+        ("relevance_ratio", "Relevance/token", "#D55E00", "s"),
+        ("mmr", "MMR", "#009E73", "^"),
+        ("submodular_combined_lambda_2", "Combined, lambda=2", "#56B4E9", "P"),
+        ("lazy_submodular_combined_lambda_2", "Lazy combined, lambda=2", "#000000", "X"),
+    )
+
+    for method, label, color, marker in runtime_methods:
+        rows = [
+            row
+            for row in runtime_rows
+            if row["Method"] == method and int(row["Budget"]) == budget
+        ]
+        rows.sort(key=lambda row: int(row["Top N"]))
+        axes[0].plot(
+            [int(row["Top N"]) for row in rows],
+            [float(row["runtime_units_mean"]) for row in rows],
+            marker=marker,
+            linewidth=1.8,
+            markersize=5.5,
+            color=color,
+            label=label,
+        )
+    axes[0].set_title("(a) Runtime proxy")
+    axes[0].set_xlabel(r"Candidate set size $N$")
+    axes[0].set_ylabel(r"Runtime proxy units (log scale)")
+    axes[0].set_xticks([10, 20, 40])
+    axes[0].set_yscale("log")
+    style_axis(axes[0])
+
+    objectives = ("coverage", "diversity", "combined")
+    labels = ("Coverage", "Diversity", "Combined")
+    data = []
+    summary = []
+    for objective in objectives:
+        values = [
+            float(row["Approx Ratio"])
+            for row in optimal_rows
+            if row["Status"] == "executed"
+            and row["Selector"] == "budgeted_greedy"
+            and row["Objective"] == objective
+            and row["Approx Ratio"]
+        ]
+        data.append(values)
+        summary.append((sum(values) / len(values), min(values)))
+
+    box = axes[1].boxplot(
+        data,
+        tick_labels=labels,
+        patch_artist=True,
+        widths=0.55,
+        showmeans=True,
+        meanprops={
+            "marker": "o",
+            "markerfacecolor": "#333333",
+            "markeredgecolor": "#333333",
+            "markersize": 4,
+        },
+        medianprops={"color": "#111111", "linewidth": 1.3},
+        boxprops={"linewidth": 1.0},
+        whiskerprops={"linewidth": 1.0},
+        capprops={"linewidth": 1.0},
+        flierprops={
+            "marker": ".",
+            "markerfacecolor": "#666666",
+            "markeredgecolor": "#666666",
+            "alpha": 0.28,
+        },
+    )
+    for patch, color in zip(box["boxes"], ("#CC79A7", "#E69F00", "#56B4E9"), strict=True):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.65)
+
+    axes[1].axhline(1.0, color="#444444", linestyle="--", linewidth=1.0, alpha=0.8)
+    axes[1].set_title("(b) Greedy vs. exact optimum")
+    axes[1].set_xlabel(r"Objective")
+    axes[1].set_ylabel(r"$F(S_{\mathrm{greedy}})/F(S^*)$")
+    axes[1].set_ylim(0.82, 1.01)
+    axes[1].set_yticks([0.85, 0.90, 0.95, 1.00])
+    style_axis(axes[1])
+    for idx, (mean_value, min_value) in enumerate(summary, start=1):
+        axes[1].text(
+            idx,
+            0.835,
+            f"mean {mean_value:.3f}\nmin {min_value:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=6.8,
+            color="#333333",
+        )
+
+    handles, labels_for_legend = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels_for_legend,
+        loc="lower center",
+        ncol=3,
+        fontsize=7.3,
+        frameon=True,
+        facecolor="white",
+        edgecolor="#d0d0d0",
+    )
+    fig.tight_layout(rect=(0.0, 0.16, 1.0, 1.0), w_pad=2.1)
+    save_figure(fig, "scalability_optimality")
+
+
 def main() -> None:
     configure_matplotlib()
-    aggregate_rows = read_csv(AGGREGATE_CSV)
-    optimal_rows = read_csv(OPTIMAL_CSV)
     plot_method_overview()
-    plot_budget_sensitivity(aggregate_rows)
-    plot_precision_recall(aggregate_rows)
-    plot_scalability_optimality(aggregate_rows, optimal_rows)
+    plot_scalability_optimality_from_artifacts()
 
 
 if __name__ == "__main__":
