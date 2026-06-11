@@ -8,7 +8,7 @@
   abstract: [
     本讲义根据课程 `Algorithm Design and Analysis` 的 Lecture 0 到 Lecture 22
     整理而成。内容按主题组织：导论、贪心、分治、动态规划、网络流，以及复杂性理论与特殊情形处理。每一章重点解释算法为什么成立、状态和贪心规则如何设计、证明时应抓住什么结构，以及不同算法范式之间的联系。后半部分整理归约、`P/NP/co-NP`、NP-complete、PSPACE、FPT，以及 NP-hard 问题的特殊结构处理方法。
-    新增部分覆盖 local search、Nash equilibrium、摊还分析、Fibonacci heap、随机算法、hashing 与 Bloom filter。
+    新增部分覆盖 local search、Nash equilibrium、摊还分析、Fibonacci heap、随机算法、hashing、Bloom filter、fingerprinting、Chernoff bounds、随机负载均衡，以及近似算法。
   ],
   date: datetime(year: 2026, month: 6, day: 2),
   authors: (
@@ -48,3 +48,5 @@
 #include "content/17-amortized-analysis.typ"
 #include "content/18-randomized-algorithms.typ"
 #include "content/19-hashing-bloom.typ"
+#include "content/20-fingerprinting-chernoff.typ"
+#include "content/21-approximation-scheduling.typ"
