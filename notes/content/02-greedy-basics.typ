@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第二章 贪心算法基础
 
-#tip-box(title: "贪心最容易错的地方")[
+#tip-block(title: "贪心最容易错的地方")[
   贪心算法不是“看起来顺手就行”。真正困难的部分几乎总是 *证明*：为什么这一步局部最优，不会把未来逼入死路？
 ]
 
@@ -50,7 +49,7 @@ Lecture 2 给出的定义非常直接：
 
 这说明：即使最优解一开始没选贪心选的那个作业，我们也总能把它“修”成选了该作业的另一组最优解。
 
-#important-box(title: "这类证明的常见模板")[
+#important-block(title: "这类证明的常见模板")[
   交换论证的核心不是“贪心看起来合理”，而是：
   若某个最优解没有按贪心规则选，我们总能把它改造成按贪心规则选、且质量不变的另一个最优解。
 ]
@@ -156,7 +155,7 @@ Lecture 2 末尾总结了三类证明策略：
 
 cut property 解释了 Kruskal 和 Prim 为什么安全：你挑的那条最轻跨 cut 边，不会犯错。cycle property 则解释了 Reverse-Delete：环里最重的边不值得保留。
 
-#tip-box(title: "如何记住 cut property")[
+#tip-block(title: "如何记住 cut property")[
   当图被分成两边时，任何生成树都必须至少用一条边把两边接起来。
   既然总得接，那最轻的那条边天然具有“优先保留”的资格。
 ]
@@ -209,7 +208,7 @@ Lecture 3 给出的贪心算法非常像 Kruskal：
 
 这其实是一种更强版本的交换论证。
 
-#important-box(title: "online 和 offline 的边界")[
+#important-block(title: "online 和 offline 的边界")[
   FF 之所以最优，不是因为现实系统真能知道未来，而是因为它给出了 offline 的理论最优基线。
   后面分析在线缓存算法时，常常拿它做比较对象。
 ]

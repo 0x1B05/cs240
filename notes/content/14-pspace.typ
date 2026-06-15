@@ -1,5 +1,4 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十四章 PSPACE：当“证书”变成一整套策略
 
@@ -173,7 +172,7 @@ PSPACE 的思路是：不要真的把整张图存下来，只判断“从 $c_1$ 
   ],
 )
 
-#tip-box(title: "读题时的检查点")[
+#tip-block(title: "读题时的检查点")[
   如果题目只让你交出一个候选解，先想 `NP`。
   如果题目要求你面对对手的所有回应，或者在指数状态空间里规划一条路，就要开始想 `PSPACE`。
 ]

@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十二章 TSP、最长路与 3-着色
 
-#tip-box(title: "这一章的共同主题")[
+#tip-block(title: "这一章的共同主题")[
   看起来完全不同的三个问题：
   旅行商、最长路、图着色，
   最后都能被放进 NP-complete 的同一张地图里。
@@ -43,7 +42,7 @@
   所以每条边都只能取 1，这意味着这些边全部对应原图中的真实边，
   从而构成一个 Hamiltonian cycle。
 
-#important-box(title: "这个归约为什么经典")[
+#important-block(title: "这个归约为什么经典")[
   它展示了一个常见技巧：
   用一组非常简单的权重（这里只用 1 和 2），
   把“能不能走”编码成“走了会不会超预算”。
@@ -132,7 +131,7 @@
 
 这样就把“每个 clause 至少一个 literal 为真”准确翻译成了“每个 clause gadget 可染色”。
 
-#tip-box(title: "Clause gadget 先记语义")[
+#tip-block(title: "Clause gadget 先记语义")[
   在 `3-SAT <=_p 3-COLOR` 中，
   clause gadget 的唯一使命就是：
   *禁止“三个输入全是假”这一种情况。*
@@ -166,7 +165,7 @@
   ],
 )
 
-#tip-box(title: "读完这一章先检查这些")[
+#tip-block(title: "读完这一章先检查这些")[
   - 复述 `HAM-CYCLE <=_p TSP` 的 1/2 权重构造；
   - 解释为什么 longest simple path 和 shortest path 的复杂性完全不同；
   - 理解 interference graph 与寄存器分配的关系；

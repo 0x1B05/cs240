@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十九章 Hashing 与 Bloom Filters
 
-#tip-box(title: "这一章的主线")[
+#tip-block(title: "这一章的主线")[
   Hashing 用随机化思想把大 universe 映射到小表中，目标是在节省空间的同时保持期望 `O(1)` 查询。
   Bloom filter 更进一步：为了更省空间，接受 false positive，但绝不接受 false negative。
 ]
@@ -255,7 +254,7 @@ false positive 来自其它 key 把这 $k$ 个位置都碰巧置成了 1。
   ],
 )
 
-#tip-box(title: "选择数据结构时这样想")[
+#tip-block(title: "选择数据结构时这样想")[
   需要有序操作就不要用 hash table；只要 find/insert/delete 且希望快，hash table 很合适。
   若只想用很小空间预判“不存在”，Bloom filter 往往比精确集合更合适。
 ]

@@ -1,12 +1,11 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 #let Pr = math.op("Pr")
 #let Var = math.op("Var")
 
 = 第二十章 Fingerprinting、Chernoff Bounds 与随机负载均衡
 
-#tip-box(title: "这一章的主线")[
+#tip-block(title: "这一章的主线")[
   前面随机算法多用期望分析。本章往前走一步：fingerprinting 用很少通信换取小概率错误，Chernoff bounds 则说明独立随机变量之和不仅“期望好”，而且大概率不会偏离太远。
 ]
 
@@ -224,7 +223,7 @@ $ Pr[exists i, X_i >= (1+delta)m/n] <= n e^(-(m/n) delta^2 / 3). $
   ],
 )
 
-#tip-box(title: "考试和作业里怎么用")[
+#tip-block(title: "考试和作业里怎么用")[
   看到“独立随机选择很多次，然后问总数是否偏离期望”，优先想到 Chernoff。
   看到“要让所有机器、所有点、所有阶段都同时好”，通常先对固定对象做 Chernoff，再用 union bound。
 ]

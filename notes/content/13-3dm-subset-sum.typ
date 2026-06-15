@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十三章 3D 匹配与子集和
 
-#tip-box(title: "这一章怎么读")[
+#tip-block(title: "这一章怎么读")[
   这一章继续做 NP-complete 归约。重点不是背每个 gadget，
   而是看清楚“匹配约束”和“数字位数”怎么承载逻辑条件。
 ]
@@ -47,7 +46,7 @@
 - 若存在完美 3D matching，则变量 gadget 中的整组选择必然诱导出一个一致赋值，
   而每个 clause gadget 被覆盖又保证了至少有一个 literal 为真。
 
-#important-box(title: "3D matching gadget 的本质")[
+#important-block(title: "3D matching gadget 的本质")[
   它利用了 perfect matching 的“每个元素恰好被用一次”这一刚性约束，
   把布尔变量的二选一和子句的至少一真都编码了进去。
 ]
@@ -66,7 +65,7 @@
 
 这里有一个容易丢分的复杂性细节：
 
-#warning-box(title: "数值问题一定要注意输入编码长度")[
+#warning-block(title: "数值问题一定要注意输入编码长度")[
   对整数问题，输入大小按 *二进制长度* 计算。
   因此一个依赖于数值大小 `W` 的算法，不一定是关于输入长度 `log W` 的多项式时间算法。
 ]
@@ -151,7 +150,7 @@
   参数小时能否固定参数 tractable？
   现实数据上是否可以做启发式？
 
-#tip-box(title: "复杂性理论给的是选择路线的能力")[
+#tip-block(title: "复杂性理论给的是选择路线的能力")[
   学会 NP-completeness 以后，你拿到一个新问题时，
   不只会问“怎么解”，还会问“该往哪类解法里找”。
   这正是它在算法课程里的最大价值。

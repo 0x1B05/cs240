@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第三章 分治算法
 
-#tip-box(title: "这一章的主线")[
+#tip-block(title: "这一章的主线")[
   分治算法的关键不是“写递归”，而是找到合适的拆分方式，让子问题足够独立、合并足够便宜，或者用代数技巧减少递归子问题个数。
 ]
 
@@ -46,7 +45,7 @@ $T(n) = 2T(n/2) + O(n) = Theta(n log n)$。
 
 因此 combine 能在线性时间内完成，最终总复杂度是 $O(n log n)$。
 
-#tip-box(title: "最近点对最关键的观察")[
+#tip-block(title: "最近点对最关键的观察")[
   不是“只看 strip”这句话本身，而是：
   在 strip 里继续利用几何稀疏性，证明每个点只需要检查常数个候选。
   如果做不到这一步，分治依然会退化到二次复杂度。
@@ -91,7 +90,7 @@ Karatsuba 的突破在于：
 
 `T(n) = 3T(n/2) + O(n) = O(n^(log_2 3)) ~= O(n^1.585)`。
 
-#important-box(title: "Karatsuba 的本质")[
+#important-block(title: "Karatsuba 的本质")[
   Karatsuba 不是“算得更巧”，而是 *用额外的加减法换掉一次递归乘法*。
   在分治里，乘法子问题的数量通常比线性级别的加法更值得节省。
 ]
@@ -173,7 +172,7 @@ FFT 的核心等式是把一个多项式按奇偶项拆开：`A(x) = A_even(x^2)
 
 因此，多项式乘法可以从朴素的 `Theta(n^2)` 降到 `O(n log n)`。
 
-#tip-box(title: "FFT 里最值得记住的一件事")[
+#tip-block(title: "FFT 里最值得记住的一件事")[
   不是每个公式细节，而是这个套路：选择一组“分治后仍保持闭合”的求值点，让大问题自然变成两个规模减半的小问题。
 ]
 
@@ -192,7 +191,7 @@ FFT 的核心等式是把一个多项式按奇偶项拆开：`A(x) = A_even(x^2)
   ],
 )
 
-#tip-box(title: "你应该形成的直觉")[
+#tip-block(title: "你应该形成的直觉")[
   一道分治题真正的亮点，往往不是“会递归”，而是：
   能否让合并步骤保持便宜，或者把原本看似不可避免的某个递归子问题省掉。
 ]

@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十八章 Randomized Algorithms：用概率换简单和速度
 
-#tip-box(title: "随机算法的基本问题")[
+#tip-block(title: "随机算法的基本问题")[
   随机算法不是“希望运气好”。它允许算法内部抛硬币，然后用期望、失败概率和放大技巧给出可证明的保证。
 ]
 
@@ -255,7 +254,7 @@ slides 还给出一个弱但有用的概率下界：随机赋值满足至少 `7k
   ],
 )
 
-#tip-box(title: "随机算法分析套路")[
+#tip-block(title: "随机算法分析套路")[
   先把关心的总量拆成 indicator variables，用线性期望算期望；
   如果需要高概率保证，再考虑独立重复、union bound 或更强的 concentration 工具。
 ]

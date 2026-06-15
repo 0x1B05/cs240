@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十一章 co-NP、好刻画与 Hamiltonian 问题
 
-#tip-box(title: "这一章要纠正一个直觉")[
+#tip-block(title: "这一章要纠正一个直觉")[
   很多人第一次学 `NP` 时，会下意识觉得：
   “yes 实例有短证明，那 no 实例应该也差不多吧？”
   这一讲要讲清楚：这件事一点也不显然。
@@ -58,7 +57,7 @@ Hamiltonian cycle 也是一样：
 
 `phi` 是 `UNSAT` 当且仅当 `¬phi` 是 `TAUTOLOGY`。
 
-#warning-box(title: "UNSAT 不是 SAT，只是把答案写成 no")[
+#warning-block(title: "UNSAT 不是 SAT，只是把答案写成 no")[
   `UNSAT` 是 SAT 的补问题，不是“同一个问题里回答 no”这么简单。
   当我们说一个问题属于 `co-NP`，讨论的是“这个补问题的 yes 实例是否有短证书”。
 ]
@@ -111,7 +110,7 @@ Edmonds 提出的 *good characterization* 指的是问题同时属于 `NP` 与 `
 
 这就是一个非常典型的“好刻画”。
 
-#important-box(title: "好刻画为什么重要")[
+#important-block(title: "好刻画为什么重要")[
   一个问题一旦被放进 `NP intersection co-NP`，
   你就知道它不像 SAT 那样只有 yes 端好证。
   这常常预示着问题可能进一步落入 `P`，或者至少拥有更强的结构定理。
@@ -198,7 +197,7 @@ Edmonds 提出的 *good characterization* 指的是问题同时属于 `NP` 与 `
 - 若图存在 Hamiltonian cycle，则它在变量 gadget 中的穿越方向必然诱导出一个布尔赋值，
   并且每个 clause node 都必须借助某个“被满足的通道”被访问。
 
-#tip-box(title: "如何读懂这种 Hamiltonian gadget")[
+#tip-block(title: "如何读懂这种 Hamiltonian gadget")[
   只盯着单条边几乎一定会迷路。
   正确读法是：
 
@@ -220,7 +219,7 @@ Edmonds 提出的 *good characterization* 指的是问题同时属于 `NP` 与 `
   ],
 )
 
-#tip-box(title: "读完这一章先检查这些")[
+#tip-block(title: "读完这一章先检查这些")[
   - 为什么 `NP` 的定义天然不对称；
   - `SAT`、`UNSAT`、`TAUTOLOGY` 三者是什么关系；
   - 好刻画为什么值得关注；

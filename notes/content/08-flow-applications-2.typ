@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第八章 网络流应用二
 
-#tip-box(title: "这一章的重点")[
+#tip-block(title: "这一章的重点")[
   这一章不是再引入新理论，而是展示网络流建模的威力：
   某些问题表面上像体育排名、项目筛选、矿场开采，
   实际上都能化成 cut 与 flow。
@@ -44,7 +43,7 @@
 
 这组球队其实就来自最大流最小割中的源侧点集。
 
-#important-box(title: "这很有代表性")[
+#important-block(title: "这很有代表性")[
   最小割不仅能告诉你“做不到”，还常常能告诉你“究竟是哪一组约束合起来把它卡死了”。
   这组卡死你的对象，就是一个证书。
 ]
@@ -104,7 +103,7 @@
   ],
 )
 
-#tip-box(title: "学完这门课后最该具备的能力")[
+#tip-block(title: "学完这门课后最该具备的能力")[
   当你拿到一个新问题时，不要先问“能不能套某个模板”，而应先问：
 
   - 这个问题的结构更像局部决策，还是全局状态？
@@ -123,7 +122,7 @@
    exchange argument、stays ahead、状态递推、最大流最小割。
 4. 最后回到建模题，练习把文字约束翻译成图结构。
 
-#important-box(title: "最后一句话")[
+#important-block(title: "最后一句话")[
   算法设计真正训练的，是 *把问题看成结构* 的能力。
   当你能把一个具体问题抽象成 interval、state、cut、matching 或 residual graph 时，
   解法往往已经出现了一半。
