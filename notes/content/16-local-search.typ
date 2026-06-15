@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十六章 Local Search：从局部改进到均衡
 
-#tip-box(title: "这一章的关键词")[
+#tip-block(title: "这一章的关键词")[
   Local search 的核心不是一次性构造最优解，而是从一个可行解出发，反复找“邻居”里更好的解。
   分析时要问三件事：邻居关系是什么、每一步是否真的改进、什么时候停下来以后能保证什么。
 ]
@@ -189,7 +188,7 @@ Local search 的另一个重要面貌是博弈中的 best response dynamics。
   ],
 )
 
-#tip-box(title: "读 local search 题时先问")[
+#tip-block(title: "读 local search 题时先问")[
   解空间是什么？邻居是什么？每一步优化的量是什么？
   如果停下来，它是全局最优、近似最优，还是只是某种均衡？
 ]

@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十章 NP 完全性
 
-#tip-box(title: "这一章解决的问题")[
+#tip-block(title: "这一章解决的问题")[
   上一章讲了归约是什么。这一章开始用归约做复杂性证明：
   如果一个问题被证明为 NP-complete，就说明它不是“暂时没想出算法”那么简单。
 ]
@@ -17,8 +16,7 @@
 ]
 
 #definition[
-  *Polynomial transformation*（Karp reduction）要求你对任意输入 $x$，在多项式时间内构造一个新输入 $y$，
-  使得 $x$ 是 yes 实例当且仅当 $y$ 是 yes 实例。
+  *Polynomial transformation*（Karp reduction）要求你对任意输入 $x$，在多项式时间内构造一个新输入 $y$，使得 $x$ 是 yes 实例当且仅当 $y$ 是 yes 实例。
 ]
 
 Karp 归约可以看成更“瘦身”的版本：
@@ -64,8 +62,7 @@ Karp 归约可以看成更“瘦身”的版本：
 这个起点就是：
 
 #definition[
-  *CIRCUIT-SAT*：给定一个由 AND、OR、NOT 门组成的组合逻辑电路，
-  问是否存在输入，使得输出为 1。
+  *CIRCUIT-SAT*：给定一个由 AND、OR、NOT 门组成的组合逻辑电路，问是否存在输入，使得输出为 1。
 ]
 
 Cook-Levin 定理说明它是 NP-complete。证明可以先按下面的直觉理解：
@@ -89,7 +86,7 @@ Cook-Levin 定理说明它是 NP-complete。证明可以先按下面的直觉理
 2. 选择一个已经知道 NP-complete 的问题 `X`；
 3. 证明 `X <=_p Y`。
 
-#important-box(title: "为什么只需要找一个已知 NP-complete 问题来归约")[
+#important-block(title: "为什么只需要找一个已知 NP-complete 问题来归约")[
   因为若 `X` 已经是 NP-complete，那么 `NP` 中任意问题 `W` 都有 `W <=_p X`。
   再接上 `X <=_p Y`，就由传递性得到 `W <=_p Y`。
   所以 `Y` 自动继承了“对所有 NP 问题都至少一样难”这一性质。
@@ -142,7 +139,7 @@ Cook-Levin 定理说明它是 NP-complete。证明可以先按下面的直觉理
 - 若原电路可满足，则把每个节点按真实计算结果赋值，就能满足这些 clause；
 - 若公式可满足，则这些变量必须表现得像一个自洽的门电路计算，且最终输出为真。
 
-#tip-box(title: "你不需要死记每个门对应哪几条子句")[
+#tip-block(title: "你不需要死记每个门对应哪几条子句")[
   要掌握的是这个模板：
 
   - 一个局部门关系；
@@ -197,7 +194,7 @@ NP-complete 的影响远超算法课本本身。
 - 更合理的方向通常是：
   特殊情形、近似算法、参数化算法、启发式、或指数时间但更优的 exact algorithm。
 
-#warning-box(title: "复杂性分类是一种研究方向选择器")[
+#warning-block(title: "复杂性分类是一种研究方向选择器")[
   证明一个问题 NP-complete，不等于“这个问题没价值”。
   恰恰相反，它告诉你：别再朝错误的方向浪费十年。
 ]
@@ -215,7 +212,7 @@ NP-complete 的影响远超算法课本本身。
   ],
 )
 
-#tip-box(title: "读完这一章先检查这些")[
+#tip-block(title: "读完这一章先检查这些")[
   - 区分 Cook reduction 与 Karp transformation；
   - 解释 NP-complete 为什么和 `P = NP` 绑在一起；
   - 说清 Cook-Levin 定理在直觉上做了什么；

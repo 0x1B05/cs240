@@ -1,6 +1,4 @@
 #import "@local/notes:0.1.0": *
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
 
 #show: notes.with(
   title: [CS240 算法设计与分析课程讲义],
@@ -50,3 +48,4 @@
 #include "content/19-hashing-bloom.typ"
 #include "content/20-fingerprinting-chernoff.typ"
 #include "content/21-approximation-scheduling.typ"
+#include "content/review.typ"

@@ -1,9 +1,8 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第五章 网络流基础
 
-#tip-box(title: "这一章的主线")[
+#tip-block(title: "这一章的主线")[
   网络流把“资源从哪里来、能经过哪里、最多能送多少、哪些点只负责转运”统一写成容量约束和守恒约束。
   后面的匹配、割、项目选择、体育淘汰等问题都会反复使用这套建模语言。
 ]
@@ -69,7 +68,7 @@ Ford-Fulkerson 的关键发明就是 *residual graph*。
 
 本章只先建立这个框架。真正支撑它正确性的最大流最小割定理，要到下一章系统证明。
 
-#tip-box(title: "先记住两个关键词")[
+#tip-block(title: "先记住两个关键词")[
   - *残量图*：表示“当前还有哪些调整空间”。
   - *增广路*：表示“当前还能把总流量继续往上推的一条证据”。
 ]
@@ -88,7 +87,7 @@ Ford-Fulkerson 的关键发明就是 *residual graph*。
   ],
 )
 
-#tip-box(title: "你现在应当能说清")[
+#tip-block(title: "你现在应当能说清")[
   - 残量图为什么是最大流算法必不可少的结构。
   - 增广路为什么等价于“当前流还没推到极限”。
   - Ford-Fulkerson 为什么需要允许撤回旧流。

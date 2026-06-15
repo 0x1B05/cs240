@@ -1,5 +1,4 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 = 第十五章 FPT：NP-hard 以后还能怎么做
 
@@ -180,7 +179,7 @@ mergesort 的树是：
   ],
 )
 
-#tip-box(title: "读题时可以这样问")[
+#tip-block(title: "读题时可以这样问")[
   这个问题一般情形 NP-hard，但我的输入有没有小参数？
   图是不是接近树？
   同时发生冲突的对象是不是很少？

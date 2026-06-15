@@ -1,12 +1,11 @@
-#import "@preview/theorion:0.4.1": *
-#import "@preview/tablem:0.3.0": three-line-table
+#import "@local/notes:0.1.0": *
 
 #let OPT = math.op("OPT")
 #let cost = math.op("cost")
 
 = 第二十一章 Approximation Algorithms 与 Scheduling
 
-#tip-box(title: "这一章的主线")[
+#tip-block(title: "这一章的主线")[
   对 NP-hard 或 NP-complete 问题，精确最优解通常不可期待。Approximation algorithms 的目标是用多项式时间得到可证明接近最优的解。
 ]
 
@@ -237,6 +236,6 @@ List scheduling 的 approximation ratio 较弱，但它是 online algorithm：jo
   ],
 )
 
-#tip-box(title: "证明 approximation ratio 的套路")[
+#tip-block(title: "证明 approximation ratio 的套路")[
   先找算法输出值和 `OPT` 的共同下界或上界。Scheduling 里常用“总工作量”和“最大单个 job”作为 `OPT` 的下界；Set Cover 里常用最优解的平均成本给贪心步骤定价。
 ]
