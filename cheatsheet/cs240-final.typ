@@ -23,21 +23,11 @@
 
 == NP-complete 证明模板
 
-#smallcaps[四步必须写.]
-1. `Y in NP`：给 certificate，说明 polynomial verifier。
-2. 选已知 NP-complete 的 `X`。
-3. 构造 polynomial-time transformation `f`，把 `X` 实例变成 `Y` 实例。
-4. 证明 iff：
-```
-x is YES for X  <=>  f(x) is YES for Y
-```
-结论：`X <=_p Y`，所以 `Y` NP-hard；再加 `Y in NP`，得到 NP-complete。
-
-#smallcaps[常见错误.]
-- 方向写反：证明目标 `Y` 难，要 `known hard X <=_p Y`。
-- 只证明一边。必须 source yes -> target yes 和 target yes -> source yes 都证明。
-- 目标是 optimization 时，先写 decision version。
-- 数值问题复杂度按输入位数算；`O(nW)` 是 pseudo-polynomial，不等于 polynomial in input size。
+Problem $A$ is NP-complete? *explicitly state each part*:
++ Show that $A in "NP"$: given *a candidate solution*, we can *verify it in polynomial time*.
++ Choose a known NP-complete problem $B$.
++ Give a polynomial-time reduction from $B$ to $A$: for any instance $b$ of $B$, construct an instance $a=f(b)$ of $A$ in polynomial time. In notation, prove $B reducesto A$.
++ Prove correctness of the reduction. Show that $b " is a YES-instance of " B <==> a=f(b) " is a YES-instance of " A$.
 
 == Complexity Vocabulary
 
@@ -160,18 +150,19 @@ Feasible partition: sums add to `A`，又 `sum I_1 <= T`, `sum I_2 <= A-T`。若
 
 #smallcaps[Problem.] `m x n` grid 有 black/white pieces，可删除若干；要求每行至少剩一个 piece，且每列不能同时有黑白。
 
-#smallcaps[Reduction.] From `Monotone 3-SAT`。
+#smallcaps[Reduction.] From `3SAT`。
 
 Rows = clauses, columns = variables.
 
-Positive clause `(x_a or x_b or x_c)`: row 中 `a,b,c` 放 black。
-
-Negative clause `(not x_a or not x_b or not x_c)`: row 中 `a,b,c` 放 white。
+For clause `C_i` and variable `x_j`:
+- if `x_j` appears positively in `C_i`, put a black piece in cell `(i,j)`;
+- if `not x_j` appears in `C_i`, put a white piece in cell `(i,j)`;
+- otherwise leave the cell empty.
 
 #smallcaps[Iff.]
 Satisfying assignment -> 若 `x_j=true`，保留 column `j` 的 black、删 white；若 false，保留 white、删 black。每列单色；每个 satisfied clause row 至少剩一个 piece。
 
-Valid remaining grid -> 若 column 有 black，设变量 true；若有 white，设 false；空列任意。每行至少有 piece，正行剩 black 给 true literal，负行剩 white 给 false literal，公式满足。
+Valid remaining grid -> 若 column 有 black，设变量 true；若有 white，设 false；空列任意。每行至少有 piece；剩下的 black 对应 true positive literal，剩下的 white 对应 true negative literal，因此每个 clause satisfied。
 
 == Hamiltonian / TSP / Coloring
 
@@ -857,26 +848,28 @@ Feasibility gives `sum I_1 <= T` and `sum I_2 <= A-T`. If `sum I_1 < T`, then `s
 After the pieces to be removed are specified, scan all rows and columns to check both requirements.
 
 #smallcaps[Known problem.]
-Reduce from `Monotone 3-SAT`.
+Reduce from `3SAT`.
 
 #smallcaps[Construction.]
 Let `phi` have variables `x_1,...,x_n` and clauses `C_1,...,C_m`. Construct an `m x n` grid. Rows correspond to clauses and columns to variables.
 
-For each clause row `r`:
-- If `C_r` is positive, e.g. `(x_a or x_b or x_c)`, put black pieces in columns `a,b,c`.
-- If `C_r` is negative, e.g. `(not x_a or not x_b or not x_c)`, put white pieces in columns `a,b,c`.
-All other cells are empty. Duplicate literals can share the same cell; they do not change satisfiability.
+For each clause `C_i` and variable `x_j`:
+- if `x_j` appears in `C_i`, put a black piece in cell `(i,j)`;
+- if `not x_j` appears in `C_i`, put a white piece in cell `(i,j)`;
+- otherwise leave cell `(i,j)` empty.
+
+This is exactly the official construction: black encodes a positive occurrence and white encodes a negative occurrence. The grid has polynomial size.
 
 #smallcaps[Forward.]
 Suppose `phi` has a satisfying assignment. Remove pieces column by column:
 - if `x_j=true`, keep all black pieces in column `j` and remove all white pieces;
 - if `x_j=false`, keep all white pieces in column `j` and remove all black pieces.
-No column contains both colors. For any positive clause, at least one variable is true, so at least one black piece remains in that row. For any negative clause, at least one variable is false, so at least one white piece remains.
+No column contains both colors. Since every clause has at least one true literal, the corresponding piece remains in that clause row: a true positive literal leaves a black piece, and a true negative literal leaves a white piece. Thus every row remains nonempty.
 
 #smallcaps[Backward.]
 Suppose the grid can be made valid. Define an assignment from remaining pieces. If column `j` contains a black piece, set `x_j=true`; if it contains a white piece, set `x_j=false`; if it contains no piece, assign arbitrarily. This is well-defined because a valid column cannot contain both colors.
 
-If a positive clause row remains nonempty, it contains a black piece in some variable column, so that variable is true and the clause is satisfied. If a negative clause row remains nonempty, it contains a white piece, so some variable is false and the clause is satisfied. Therefore all clauses are satisfied.
+Each row contains at least one remaining piece. If the remaining piece is black in column `j`, then `x_j` appears positively in that clause and our assignment makes it true. If the remaining piece is white in column `j`, then `not x_j` appears in that clause and our assignment makes it true. Therefore every clause is satisfied.
 
 == HW4 Original P1 Lazy Queue
 
