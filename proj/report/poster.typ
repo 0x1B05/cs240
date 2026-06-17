@@ -7,19 +7,29 @@
 #let teal = rgb("#0f766e")
 #let orange = rgb("#b45309")
 #let slate = rgb("#334155")
+#let green = rgb("#28724f")
+#let plum = rgb("#7c3f58")
 #let light = rgb("#f8fafc")
 #let line = rgb("#cbd5e1")
+#let blue_tint = rgb("#f3f7fb")
+#let teal_tint = rgb("#f1fbf9")
+#let slate_tint = rgb("#f6f7f9")
+#let warm_tint = rgb("#fff8ed")
+#let plum_tint = rgb("#fbf5f8")
 
-#let panel(title, body) = block(
+#let panel(title, body, accent: blue, fill-color: light) = block(
   width: 100%,
-  fill: light,
-  stroke: 1.2pt + line,
-  inset: 20pt,
+  fill: fill-color,
+  stroke: 1.2pt + accent.lighten(48%),
+  inset: 0pt,
   breakable: false,
 )[
-  #text(size: 36pt, weight: "bold", fill: blue)[#title]
-  #v(8pt)
-  #body
+  #block(width: 100%, height: 8pt, fill: accent)[]
+  #block(inset: (x: 20pt, y: 16pt))[
+    #text(size: 36pt, weight: "bold", fill: accent)[#title]
+    #v(8pt)
+    #body
+  ]
 ]
 
 #let keybox(label, value, note, color: blue) = block(
@@ -29,7 +39,6 @@
   width: 100%,
 )[
   #text(size: 25pt, weight: "bold", fill: slate)[#label]
-  #v(3pt)
   #text(size: 43pt, weight: "bold", fill: color)[#value]
   #v(3pt)
   #text(size: 23pt, fill: slate)[#note]
@@ -62,7 +71,7 @@
   columns: (1fr, 1.16fr, 1fr),
   gutter: 0.32in,
   [
-    #panel([Problem], [
+    #panel([Problem], accent: blue, fill-color: blue_tint, [
       RAG retrieves many documents, but only a few fit in the model context. Rank-only packing ignores token cost and repeated evidence.
 
       #v(6pt)
@@ -75,7 +84,7 @@
 
     #v(0.18in)
 
-    #panel([Submodular Objective], [
+    #panel([Submodular Objective], accent: blue, fill-color: blue_tint, [
       Each document has relevance $r_i$, token cost $c_i$, and pairwise similarity $w_(i,j)$.
 
       #align(center)[$ L_q(S)=sum_i r_i max_(j in S) w_(i,j) $]
@@ -87,7 +96,7 @@
 
     #v(0.18in)
 
-    #panel([Algorithms], [
+    #panel([Algorithms], accent: blue, fill-color: blue_tint, [
       *Direct greedy:* repeatedly add the feasible document with largest marginal gain per token.
 
       #v(4pt)
@@ -99,7 +108,7 @@
 
     #v(0.18in)
 
-    #panel([Theory], [
+    #panel([Theory], accent: plum, fill-color: plum_tint, [
       *Coverage:* each selected document increases representative similarity maxima; marginal gains shrink as current maxima grow.
 
       #v(4pt)
@@ -111,7 +120,7 @@
 
     #v(0.18in)
 
-    #panel([Adaptation], [
+    #panel([Adaptation], accent: plum, fill-color: plum_tint, [
       Lin--Bilmes summarization becomes RAG context packing: summary units become retrieved documents, summary length becomes context-token budget, and quality is measured by gold-evidence recall, precision, and $F_1$.
 
       #v(4pt)
@@ -122,7 +131,7 @@
     ])
   ],
   [
-    #panel([Pipeline], [
+    #panel([Pipeline], accent: teal, fill-color: teal_tint, [
       #tight_image(
         "figures/multihop_q200_docbudget_s13_2/method_overview.png",
         5.55in,
@@ -131,7 +140,7 @@
 
     #v(0.18in)
 
-    #panel([Budget Sensitivity], [
+    #panel([Budget Sensitivity], accent: teal, fill-color: teal_tint, [
       #tight_image(
         "figures/multihop_q200_docbudget_s13_2/budget_sensitivity.png",
         6.15in,
@@ -142,7 +151,7 @@
 
     #v(0.18in)
 
-    #panel([Precision--Recall Trade-off], [
+    #panel([Precision--Recall Trade-off], accent: teal, fill-color: teal_tint, [
       #tight_image(
         "figures/multihop_q200_docbudget_s13_2/precision_recall_tradeoff.png",
         8.05in,
@@ -150,7 +159,7 @@
     ])
   ],
   [
-    #panel([Experimental Setup], [
+    #panel([Experimental Setup], accent: slate, fill-color: slate_tint, [
       *Dataset:* 200-query MultiHop-RAG slice, seed 13.
 
       #v(5pt)
@@ -168,7 +177,7 @@
 
     #v(0.18in)
 
-    #panel([Main Findings], [
+    #panel([Main Findings], accent: green, fill-color: teal_tint, [
       *Cost awareness:* relevance/token is a strong baseline.
 
       #v(5pt)
@@ -183,7 +192,7 @@
 
     #v(0.18in)
 
-    #panel([Scalability and Optimality], [
+    #panel([Scalability and Optimality], accent: teal, fill-color: teal_tint, [
       #tight_image(
         "figures/multihop_q200_docbudget_s13_2/scalability_optimality.png",
         5.25in,
@@ -194,7 +203,7 @@
 
     #v(0.18in)
 
-    #panel([Key Numbers], [
+    #panel([Key Numbers], accent: orange, fill-color: warm_tint, [
       #grid(
         columns: (1fr, 1fr),
         gutter: 0.15in,
