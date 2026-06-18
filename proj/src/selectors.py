@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import heapq
 import random
 
 from .data import DataValidationError
@@ -13,6 +14,7 @@ class SelectionResult:
     indices: tuple[int, ...]
     total_cost: int
     objective_value: float | None = None
+    eval_count: int | None = None
 
 
 def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> SelectionResult:
@@ -49,6 +51,67 @@ def budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> 
             return singleton
         if singleton.objective_value == greedy.objective_value and (singleton.total_cost, singleton.indices) < (greedy.total_cost, greedy.indices):
             return singleton
+    return greedy
+
+
+def lazy_budgeted_greedy(features: FeatureSet, objective: Objective, budget: int) -> SelectionResult:
+    _validate_budget(budget)
+    _validate_objective(objective)
+    selected: list[int] = []
+    total_cost = 0
+    eval_count = 0
+    queue: list[tuple[float, float, int, str, int, int]] = []
+
+    for item in range(len(features.doc_ids)):
+        if features.costs[item] <= budget:
+            gain = objective.marginal_gain(selected, item)
+            eval_count += 1
+            heapq.heappush(
+                queue,
+                (
+                    -(gain / features.costs[item]),
+                    -gain,
+                    features.costs[item],
+                    features.doc_ids[item],
+                    item,
+                    0,
+                ),
+            )
+
+    while queue:
+        neg_density, neg_gain, cost, doc_id, item, version = heapq.heappop(queue)
+        if total_cost + cost > budget:
+            continue
+
+        if version == len(selected):
+            gain = -neg_gain
+            if gain <= 0:
+                break
+            selected.append(item)
+            total_cost += cost
+            continue
+
+        gain = objective.marginal_gain(selected, item)
+        eval_count += 1
+        heapq.heappush(
+            queue,
+            (
+                -(gain / features.costs[item]),
+                -gain,
+                cost,
+                doc_id,
+                item,
+                len(selected),
+            ),
+        )
+
+    greedy = SelectionResult(tuple(selected), total_cost, objective.value(selected), eval_count)
+    singleton = _best_feasible_singleton(features, objective, budget)
+    if singleton.objective_value is not None and greedy.objective_value is not None:
+        if singleton.objective_value > greedy.objective_value:
+            return SelectionResult(singleton.indices, singleton.total_cost, singleton.objective_value, eval_count)
+        if singleton.objective_value == greedy.objective_value and (singleton.total_cost, singleton.indices) < (greedy.total_cost, greedy.indices):
+            return SelectionResult(singleton.indices, singleton.total_cost, singleton.objective_value, eval_count)
     return greedy
 
 

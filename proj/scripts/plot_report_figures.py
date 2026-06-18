@@ -14,7 +14,7 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 
 RUN_DIR = Path("proj/out/main/multihop_q200_docbudget_s13")
-OUT_DIR = Path("proj/report/figures/multihop_q200_docbudget_s13_2")
+OUT_DIR = Path("proj/report/figures/multihop_q200_docbudget_s13")
 ARTIFACT_DIR = OUT_DIR
 AGGREGATE_CSV = RUN_DIR / "aggregate_metrics.csv"
 OPTIMAL_CSV = RUN_DIR / "optimal_checks.csv"
@@ -25,7 +25,7 @@ METHODS = (
     "mmr",
     "submodular_coverage",
     "submodular_diversity",
-    "submodular_combined",
+    "submodular_combined_lambda_2",
 )
 
 SHORT_LABELS = {
@@ -34,7 +34,7 @@ SHORT_LABELS = {
     "mmr": "MMR",
     "submodular_coverage": "Coverage",
     "submodular_diversity": "Diversity",
-    "submodular_combined": "Combined",
+    "submodular_combined_lambda_2": "Combined, lambda=2",
 }
 
 COLORS = {
@@ -43,7 +43,7 @@ COLORS = {
     "mmr": "#009E73",
     "submodular_coverage": "#CC79A7",
     "submodular_diversity": "#E69F00",
-    "submodular_combined": "#56B4E9",
+    "submodular_combined_lambda_2": "#56B4E9",
 }
 
 MARKERS = {
@@ -52,7 +52,7 @@ MARKERS = {
     "mmr": "^",
     "submodular_coverage": "D",
     "submodular_diversity": "v",
-    "submodular_combined": "P",
+    "submodular_combined_lambda_2": "P",
 }
 
 
@@ -119,12 +119,9 @@ def style_axis(ax) -> None:
 def save_figure(fig, stem: str) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     png_path = OUT_DIR / f"{stem}.png"
-    pdf_path = OUT_DIR / f"{stem}.pdf"
     fig.savefig(png_path, bbox_inches="tight")
-    fig.savefig(pdf_path, bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote {png_path}")
-    print(f"Wrote {pdf_path}")
 
 
 def aggregate_subset(
@@ -140,62 +137,6 @@ def aggregate_subset(
     if budget is not None:
         filtered = [row for row in filtered if as_int(row, "budget") == budget]
     return filtered
-
-
-def plot_method_overview() -> None:
-    fig, ax = plt.subplots(figsize=(8.2, 2.9), dpi=300)
-    ax.set_axis_off()
-
-    boxes = [
-        (0.02, 0.58, 0.18, 0.28, "Retrieved\ncandidates", "$C={d_1,\\ldots,d_n}$"),
-        (0.28, 0.58, 0.18, 0.28, "Features", "$r_i,\\ c_i,\\ w_{ij}$"),
-        (0.54, 0.58, 0.20, 0.28, "Budgeted greedy", "$\\max F(S)$\n$s.t.\\ \\sum c_i\\leq B$"),
-        (0.80, 0.58, 0.18, 0.28, "Selected context", "$S\\subseteq C$"),
-        (0.54, 0.10, 0.20, 0.24, "Gold evidence", "MultiHop-RAG\nlabels"),
-        (0.80, 0.10, 0.18, 0.24, "Evaluation", "Recall, precision,\n$F_1$, redundancy"),
-    ]
-
-    for x, y, width, height, title, detail in boxes:
-        patch = FancyBboxPatch(
-            (x, y),
-            width,
-            height,
-            boxstyle="round,pad=0.012,rounding_size=0.015",
-            linewidth=1.0,
-            edgecolor="#4a4a4a",
-            facecolor="#f7f7f7",
-        )
-        ax.add_patch(patch)
-        ax.text(x + width / 2, y + height * 0.66, title, ha="center", va="center", fontsize=10)
-        ax.text(
-            x + width / 2,
-            y + height * 0.32,
-            detail,
-            ha="center",
-            va="center",
-            fontsize=8.5,
-            color="#333333",
-        )
-
-    arrows = [
-        ((0.205, 0.72), (0.275, 0.72)),
-        ((0.465, 0.72), (0.535, 0.72)),
-        ((0.745, 0.72), (0.795, 0.72)),
-        ((0.89, 0.57), (0.89, 0.37)),
-        ((0.745, 0.22), (0.795, 0.22)),
-    ]
-    for start, end in arrows:
-        arrow = FancyArrowPatch(
-            start,
-            end,
-            arrowstyle="-|>",
-            mutation_scale=12,
-            linewidth=1.1,
-            color="#444444",
-        )
-        ax.add_patch(arrow)
-
-    save_figure(fig, "method_overview")
 
 
 def plot_budget_sensitivity(aggregate_rows: list[dict[str, str]]) -> None:
@@ -280,93 +221,6 @@ def plot_precision_recall(aggregate_rows: list[dict[str, str]]) -> None:
     )
     fig.tight_layout()
     save_figure(fig, "precision_recall_tradeoff")
-
-
-def plot_scalability_optimality(
-    aggregate_rows: list[dict[str, str]],
-    optimal_rows: list[dict[str, str]],
-) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(8.2, 3.5), dpi=300)
-    budget = 6400
-    runtime_methods = ("top_ranked", "relevance_ratio", "mmr", "submodular_combined")
-
-    for method in runtime_methods:
-        rows = aggregate_subset(aggregate_rows, method=method, budget=budget)
-        rows.sort(key=lambda row: as_int(row, "top_n"))
-        axes[0].plot(
-            [as_int(row, "top_n") for row in rows],
-            [as_float(row, "runtime_units_mean") for row in rows],
-            marker=MARKERS[method],
-            linewidth=1.8,
-            markersize=5.5,
-            color=COLORS[method],
-            label=SHORT_LABELS[method],
-        )
-    axes[0].set_title("(a) Runtime proxy")
-    axes[0].set_xlabel(r"Candidate set size $N$")
-    axes[0].set_ylabel(r"Runtime proxy units (log scale)")
-    axes[0].set_xticks([10, 20, 40])
-    axes[0].set_yscale("log")
-    style_axis(axes[0])
-    axes[0].legend(
-        loc="upper left",
-        fontsize=7.3,
-        frameon=True,
-        shadow=False,
-        facecolor="white",
-        edgecolor="#d0d0d0",
-    )
-
-    objectives = ("coverage", "diversity", "combined")
-    labels = ("Coverage", "Diversity", "Combined")
-    data = []
-    for objective in objectives:
-        values = [
-            as_float(row, "approx_ratio")
-            for row in optimal_rows
-            if row["status"] == "executed"
-            and row["selector"] == "budgeted_greedy"
-            and row["objective"] == objective
-            and row["approx_ratio"]
-        ]
-        data.append(values)
-
-    box = axes[1].boxplot(
-        data,
-        tick_labels=labels,
-        patch_artist=True,
-        widths=0.55,
-        showmeans=True,
-        meanprops={
-            "marker": "o",
-            "markerfacecolor": "#333333",
-            "markeredgecolor": "#333333",
-            "markersize": 4,
-        },
-        medianprops={"color": "#111111", "linewidth": 1.3},
-        boxprops={"linewidth": 1.0},
-        whiskerprops={"linewidth": 1.0},
-        capprops={"linewidth": 1.0},
-        flierprops={
-            "marker": ".",
-            "markerfacecolor": "#666666",
-            "markeredgecolor": "#666666",
-            "alpha": 0.30,
-        },
-    )
-    for patch, color in zip(box["boxes"], ("#CC79A7", "#E69F00", "#56B4E9"), strict=True):
-        patch.set_facecolor(color)
-        patch.set_alpha(0.65)
-
-    axes[1].axhline(1.0, color="#444444", linestyle="--", linewidth=1.0, alpha=0.8)
-    axes[1].set_title("(b) Greedy vs. exact optimum")
-    axes[1].set_xlabel(r"Objective")
-    axes[1].set_ylabel(r"$F(S_{\mathrm{greedy}})/F(S^*)$")
-    axes[1].set_ylim(0.0, 1.08)
-    style_axis(axes[1])
-
-    fig.tight_layout(w_pad=2.0)
-    save_figure(fig, "scalability_optimality")
 
 
 def plot_scalability_optimality_from_artifacts() -> None:
@@ -484,7 +338,9 @@ def plot_scalability_optimality_from_artifacts() -> None:
 
 def main() -> None:
     configure_matplotlib()
-    plot_method_overview()
+    aggregate_rows = read_csv(AGGREGATE_CSV)
+    plot_budget_sensitivity(aggregate_rows)
+    plot_precision_recall(aggregate_rows)
     plot_scalability_optimality_from_artifacts()
 
 

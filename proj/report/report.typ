@@ -89,7 +89,7 @@ Direct greedy has a conservative uncached cost of $O(k n^2)$ objective work for 
   float: true,
   scope: "parent",
   figure(
-    image("figures/multihop_q200_docbudget_s13_2/method_overview.png", width: 95%),
+    image("figures/method_overview.png", width: 95%),
     caption: [Pipeline. A retriever supplies candidates, feature extraction computes relevance/cost/similarity, greedy submodular selection packs a feasible context set, and the selected documents are compared with MultiHop-RAG gold evidence.],
   ),
 )
@@ -122,7 +122,7 @@ Metrics compare selected document IDs with gold evidence IDs: evidence recall, p
 == Budget Sensitivity
 
 #figure(
-  image("figures/multihop_q200_docbudget_s13_2/budget_sensitivity.png", width: 100%),
+  image("figures/multihop_q200_docbudget_s13/budget_sensitivity.png", width: 100%),
   caption: [Budget sensitivity for top-10 candidates. Recall rises as the budget admits more articles; $F_1$ reflects the precision cost of adding extra non-evidence documents.],
 )
 
@@ -164,7 +164,7 @@ For the direct combined selector with top-10 candidates, increasing $lambda$ imp
 )
 
 #figure(
-  image("figures/multihop_q200_docbudget_s13_2/precision_recall_tradeoff.png", width: 100%),
+  image("figures/multihop_q200_docbudget_s13/precision_recall_tradeoff.png", width: 100%),
   caption: [Precision--recall trade-off as the budget increases from 1600 to 3200 to 6400 for top-10 candidates. Methods that fill more budget tend to move rightward in recall and downward in precision.],
 )
 
@@ -173,7 +173,7 @@ Figure 3 makes the trade-off explicit. The submodular selectors recover more evi
 == Scalability and Greedy Validation
 
 #figure(
-  image("figures/multihop_q200_docbudget_s13_2/scalability_optimality.png", width: 100%),
+  image("figures/multihop_q200_docbudget_s13/scalability_optimality.png", width: 100%),
   caption: [Scalability and greedy validation. Panel (a) compares deterministic runtime proxy units at budget 6400. Panel (b) zooms in on exhaustive top-10 checks; the ratios cluster near 1.0, so the direct greedy solutions are usually very close to exact optima on tested instances.],
 )
 

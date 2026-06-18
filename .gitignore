@@ -17,7 +17,10 @@ proj/data/processed/*
 !proj/data/processed/fixture-multihop/
 !proj/data/processed/fixture-multihop/**
 proj/out/
+
+# Report figures: keep only final PNGs committed with the report.
 proj/report/figures/*
+!proj/report/figures/method_overview.png
 !proj/report/figures/multihop_q200_docbudget_s13/
 proj/report/figures/multihop_q200_docbudget_s13/*
 !proj/report/figures/multihop_q200_docbudget_s13/*.png

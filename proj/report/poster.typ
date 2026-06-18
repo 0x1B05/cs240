@@ -133,7 +133,7 @@
   [
     #panel([Pipeline], accent: teal, fill-color: teal_tint, [
       #tight_image(
-        "figures/multihop_q200_docbudget_s13_2/method_overview.png",
+        "figures/method_overview.png",
         5.55in,
       )
     ])
@@ -142,7 +142,7 @@
 
     #panel([Budget Sensitivity], accent: teal, fill-color: teal_tint, [
       #tight_image(
-        "figures/multihop_q200_docbudget_s13_2/budget_sensitivity.png",
+        "figures/multihop_q200_docbudget_s13/budget_sensitivity.png",
         6.15in,
       )
       #v(4pt)
@@ -153,7 +153,7 @@
 
     #panel([Precision--Recall Trade-off], accent: teal, fill-color: teal_tint, [
       #tight_image(
-        "figures/multihop_q200_docbudget_s13_2/precision_recall_tradeoff.png",
+        "figures/multihop_q200_docbudget_s13/precision_recall_tradeoff.png",
         8.05in,
       )
     ])
@@ -194,7 +194,7 @@
 
     #panel([Scalability and Optimality], accent: teal, fill-color: teal_tint, [
       #tight_image(
-        "figures/multihop_q200_docbudget_s13_2/scalability_optimality.png",
+        "figures/multihop_q200_docbudget_s13/scalability_optimality.png",
         5.25in,
       )
       #v(4pt)
