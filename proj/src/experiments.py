@@ -26,12 +26,12 @@ from .metrics import evaluate_selection
 from .objectives import Objective, combined_objective, coverage_objective, diversity_objective
 from .paths import has_symlink_parent
 from .retrieval import retrieve_top_n
-from .selectors import budgeted_greedy, exhaustive_optimal, mmr, relevance_ratio, seeded_random, top_ranked
+from .selectors import lazy_budgeted_greedy, budgeted_greedy, exhaustive_optimal, mmr, relevance_ratio, seeded_random, top_ranked
 
 
 DEFAULT_BUDGET = 18
 DEFAULT_TOP_N = 5
-DEFAULT_SELECTORS = ("top_ranked", "relevance_ratio", "random_seeded", "mmr", "budgeted_greedy")
+DEFAULT_SELECTORS = ("top_ranked", "relevance_ratio", "random_seeded", "mmr", "budgeted_greedy", "lazy_budgeted_greedy")
 DEFAULT_OBJECTIVES = ("coverage", "diversity", "combined")
 BASELINE_OBJECTIVE = "none"
 BASELINE_LAMBDA = 0.0
@@ -618,11 +618,14 @@ def _candidate_rows(candidates_by_top_n: dict[int, dict[str, list[Candidate]]]) 
 
 def _method_specs(config: ExperimentConfig):
     for selector in config.selectors:
-        if selector == "budgeted_greedy":
+        if selector in {"budgeted_greedy", "lazy_budgeted_greedy"}:
             for objective in config.objectives:
                 lambda_values = config.combined_lambdas if objective == "combined" else (BASELINE_LAMBDA,)
                 for lambda_value in lambda_values:
-                    yield selector, objective, lambda_value, _submodular_label(objective, lambda_value, len(lambda_values))
+                    label = _submodular_label(objective, lambda_value, len(lambda_values))
+                    if selector == "lazy_budgeted_greedy":
+                        label = f"lazy_{label}"
+                    yield selector, objective, lambda_value, label
         else:
             yield selector, BASELINE_OBJECTIVE, BASELINE_LAMBDA, selector
 
@@ -651,6 +654,8 @@ def _run_selector(
         result = mmr(features, budget, lambda_value=config.mmr_lambda)
     elif selector == "budgeted_greedy":
         result = budgeted_greedy(features, _objective_for(features, objective_name, lambda_value), budget)
+    elif selector == "lazy_budgeted_greedy":
+        result = lazy_budgeted_greedy(features, _objective_for(features, objective_name, lambda_value), budget)
     else:
         raise DataValidationError(f"unknown selector: {selector}")
     runtime_units = _runtime_units(selector, features, result)
@@ -663,6 +668,8 @@ def _query_seed(seed: int, query_id: str) -> int:
 
 
 def _runtime_units(selector: str, features: FeatureSet, result) -> int:
+    if selector == "lazy_budgeted_greedy":
+        return result.eval_count if result.eval_count is not None else 0
     n = len(features.doc_ids)
     selected = max(1, len(result.indices))
     if selector == "top_ranked":
