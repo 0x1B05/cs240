@@ -10,7 +10,10 @@
     (name: "Junqi Liu - 2025234339", email: "liujq2025@shanghaitech.edu.cn"),
     (name: "Xu Zhu - 2025234378", email: "zhuxu2025@shanghaitech.edu.cn"),
     (name: "Yuxuan Fu - 2025234266", email: "fuyx2025@shanghaitech.edu.cn"),
-    (name: "Zhixin Xiao - 2025234366", email: "xiaozhx2025@shanghaitech.edu.cn"),
+    (
+      name: "Zhixin Xiao - 2025234366",
+      email: "xiaozhx2025@shanghaitech.edu.cn",
+    ),
     (name: "Ledu Zhang - 2025234374", email: "zhangld2025@shanghaitech.edu.cn"),
   ),
   index-terms: (
@@ -49,7 +52,7 @@ which rewards selected documents that represent relevant candidates, and the con
 
 $ R_q(S)=sqrt(sum_(i in S) r_i). $
 
-The combined objective is $F_q(S)=L_q(S)+lambda R_q(S)$. Coverage is monotone submodular because adding a document can only increase each maximum, and the marginal improvement decreases as the current representative score grows. Diversity is monotone submodular because it is a nondecreasing concave function of a modular relevance sum. Therefore their nonnegative combination is also monotone submodular.
+The combined objective is $F_q(S)=L_q(S)+lambda R_q(S)$. We define $max_(j in emptyset) w_(i,j)=0$, so $L_q(emptyset)=R_q(emptyset)=F_q(emptyset)=0$. For a set function $F$, the marginal gain of adding $x$ is $Delta_x^F(S)=F(S union {x})-F(S)$.
 
 The implemented direct selector repeatedly adds the feasible document with largest marginal gain per token, $Delta_x^F(S)/c_x$, then compares the result with the best feasible singleton.
 
@@ -68,19 +71,39 @@ The implemented direct selector repeatedly adds the feasible document with large
 
 The lazy greedy variant uses the same objective but caches marginal-gain densities in a priority queue. By submodularity, old marginal gains are upper bounds after the selected set grows, so many candidates do not need to be recomputed every round.
 
-*Proposition 1 (coverage).* $L_q(S)$ is monotone submodular. For any $A subset.eq B subset.eq C$ and unselected $x$, define $m_i(S)=max_(j in S) w_(i,j)$. Since $m_i(A)<=m_i(B)$ and $w_(i,j)>=0$, adding $x$ never decreases any maximum, so $L_q$ is monotone. The marginal coverage gain is
+*Proposition 1 (coverage).* $L_q(S)$ is monotone submodular.
 
-$ Delta_x^L(S)=sum_i r_i (max(m_i(S),w_(i,x))-m_i(S)). $
+*Proof.* For each candidate $d_i$, define $m_i(S)=max_(j in S) w_(i,j)$ with $m_i(emptyset)=0$. If $A subset.eq B$, then $m_i(A)<=m_i(B)$ for every $i$. Hence $L_q(A)<=L_q(B)$ because all relevance weights $r_i$ are nonnegative, proving monotonicity. For any $x in C - B$, the marginal coverage gain is
 
-For each $i$, the term $max(m,w_(i,x))-m$ is nonincreasing as $m$ grows. Therefore $Delta_x^L(A)>=Delta_x^L(B)$, which is exactly diminishing returns.
+$ Delta_x^L(S)=sum_i r_i (max(m_i(S), w_(i,x))-m_i(S)). $
 
-*Proposition 2 (diversity and combined objective).* $R_q(S)$ is monotone submodular. Let $a(S)=sum_(i in S) r_i$. The marginal gain of adding $x$ is
+For a fixed $i$ and $x$, let $g_i(m)=max(m, w_(i,x))-m$. This term is $w_(i,x)-m$ when $m<w_(i,x)$ and $0$ otherwise, so it is nonincreasing in $m$. Since $m_i(A)<=m_i(B)$, we have $g_i(m_i(A))>=g_i(m_i(B))$. Multiplying by $r_i>=0$ and summing over $i$ gives $Delta_x^L(A)>=Delta_x^L(B)$. This is the diminishing-returns condition, so $L_q$ is submodular. $square$
+
+*Proposition 2 (concave relevance term).* $R_q(S)=sqrt(sum_(i in S) r_i)$ is monotone submodular.
+
+*Proof.* Let $a(S)=sum_(i in S) r_i$. Since $r_i>=0$, $a(S)$ is a nonnegative modular function and $A subset.eq B$ implies $a(A)<=a(B)$. Because $sqrt(.)$ is nondecreasing, $R_q(A)<=R_q(B)$. The marginal gain of adding $x$ is
 
 $ Delta_x^R(S)=sqrt(a(S)+r_x)-sqrt(a(S)). $
 
-Because $sqrt(.)$ is nondecreasing and concave, this marginal is nonnegative and decreases as $a(S)$ increases. Thus $R_q$ is monotone submodular. A nonnegative linear combination preserves monotonicity and submodularity, so $F_q(S)=L_q(S)+lambda R_q(S)$ is monotone submodular for $lambda>=0$. The unequal-cost budget makes the exact problem NP-hard by the budgeted maximum-coverage special case, motivating greedy approximation and the small-instance optimality checks in Section IV.
+For $r_x>=0$, this quantity is nonnegative. It also decreases as $a(S)$ increases because $sqrt(.)$ is concave: the same increment $r_x$ gives a smaller increase when the base value is larger. Thus $A subset.eq B$ implies $Delta_x^R(A)>=Delta_x^R(B)$, so $R_q$ is submodular. $square$
 
-The approximation guarantee we rely on is the classical intuition behind budgeted submodular coverage: marginal density greedily buys the largest remaining objective increase per token, and the best-singleton comparison avoids the case where one high-value item consumes most of the budget. For monotone submodular maximization under one knapsack constraint, this greedy family gives a constant-factor approximation in the standard setting @khuller1999budgeted. Our implementation keeps the algorithmic contract explicit rather than tuning to a neural downstream answer metric: every reported selector evaluates the same set function and feasibility constraint, so direct and lazy variants can be compared on both objective quality and evaluation cost.
+*Corollary 1 (combined objective).* For $lambda>=0$, $F_q(S)=L_q(S)+lambda R_q(S)$ is nonnegative, monotone, and submodular. This follows because nonnegative linear combinations preserve these three properties. The exact optimization problem is NP-hard: if all costs are unit costs, $lambda=0$, and similarities encode set coverage, the problem contains maximum coverage as a special case; with unequal costs, it contains budgeted maximum coverage @khuller1999budgeted.
+
+*Theorem 1 (budgeted greedy justification).* For nonnegative monotone submodular maximization under one knapsack constraint, marginal-density greedy with a best-feasible-singleton comparison is a constant-factor approximation in the standard budgeted-coverage setting @khuller1999budgeted.
+
+*Proof sketch.* Items with $c_i>B$ can be ignored. Let $O$ be an optimal feasible set. Consider the conceptual density-greedy order before any overflow is discarded: at prefix $S_t$, the next item $x_t$ maximizes $Delta_x^F(S_t)/c_x$. By monotonicity, $F_q(O)<=F_q(O union S_t)$. By submodularity, adding the elements of $O - S_t$ one at a time to $S_t$ gives
+
+$ F_q(O union S_t)-F_q(S_t) <= sum_(x in O - S_t) Delta_x^F(S_t). $
+
+The total cost of $O$ is at most $B$, so the weighted-average density of the optimal residual is at least $(F_q(O)-F_q(S_t))/B$. The greedy density is at least this average. If the next greedy item has cost $c_t$, then the residual gap contracts as
+
+$ F_q(O)-F_q(S_(t+1)) <= (1-c_t/B)(F_q(O)-F_q(S_t)). $
+
+Iterating this inequality until the first item $x_h$ whose addition would exceed $B$ gives the standard fractional bound $F_q(S_h union {x_h}) >= (1-1\/e) F_q(O)$. Since $F_q(S_h union {x_h}) <= F_q(S_h)+F_q({x_h})$ by submodularity and normalization, at least one of the prefix $S_h$ and singleton ${x_h}$ has value at least half of this bound. The implemented selector keeps a feasible greedy set whose value is no smaller than the pre-overflow prefix and explicitly compares it with the best feasible singleton, so it inherits a constant-factor guarantee from this standard analysis @khuller1999budgeted. We do not claim the tightest possible $1-1\/e$ submodular-knapsack ratio, which requires more elaborate enumeration; the point here is to reproduce and analyze the course-relevant greedy approximation rule. $square$
+
+*Lemma 2 (lazy greedy correctness).* Lazy greedy returns the same greedy choice as direct greedy under the same deterministic tie-breaking; it changes evaluation cost, not the objective.
+
+*Proof.* Suppose an item's marginal density was last computed for set $A$ and the current selected set is $B$ with $A subset.eq B$. By submodularity, $Delta_x^F(A)>=Delta_x^F(B)$, so the cached density is an upper bound on the current density. Lazy greedy stores these upper bounds in a priority queue. When an item is popped and recomputed for the current $B$, if it remains at the top, every other item has true density no larger than its cached upper bound, which is no larger than the recomputed top key. Therefore the popped item is exactly the item direct greedy would select. If it is not still on top, the algorithm pushes back the updated lower key and repeats. Thus lazy evaluation preserves the greedy sequence and only avoids unnecessary marginal-gain recomputations. $square$
 
 Direct greedy has a conservative uncached cost of $O(k n^2)$ objective work for $k$ selected documents when each marginal recomputes coverage over $n$ candidates. Lazy greedy has the same worst-case bound but often performs far fewer recomputations because stale marginal densities are valid upper bounds. Exhaustive search is exponential, so we use it only for small top-10 validation instances.
 
@@ -89,7 +112,7 @@ Direct greedy has a conservative uncached cost of $O(k n^2)$ objective work for 
   float: true,
   scope: "parent",
   figure(
-    image("figures/method_overview.png", width: 95%),
+    image("figures/method_overview.png", width: 70%),
     caption: [Pipeline. A retriever supplies candidates, feature extraction computes relevance/cost/similarity, greedy submodular selection packs a feasible context set, and the selected documents are compared with MultiHop-RAG gold evidence.],
   ),
 )
@@ -121,63 +144,72 @@ Metrics compare selected document IDs with gold evidence IDs: evidence recall, p
 
 == Budget Sensitivity
 
+@budget_sensitivity shows the main budget trend. At $B=3200$, relevance/token reaches recall 0.393 and $F_1$ 0.400, while submodular diversity reaches recall 0.391 and $F_1$ 0.397. At $B=6400$, the combined objective with $lambda=2$ reaches the highest reported recall among the highlighted direct submodular variants, 0.524, but its $F_1$ is 0.364 because it includes more non-evidence articles. Top-ranked has lower recall at this budget, 0.492, but better $F_1$ of 0.407. Thus the submodular objective is best read as recall-oriented evidence coverage, not a strict precision optimizer.
+
 #figure(
-  image("figures/multihop_q200_docbudget_s13/budget_sensitivity.png", width: 100%),
+  image(
+    "figures/multihop_q200_docbudget_s13/budget_sensitivity.png",
+    width: 100%,
+  ),
   caption: [Budget sensitivity for top-10 candidates. Recall rises as the budget admits more articles; $F_1$ reflects the precision cost of adding extra non-evidence documents.],
-)
+)<budget_sensitivity>
 
-Figure 2 shows the main budget trend. At $B=3200$, relevance/token reaches recall 0.393 and $F_1$ 0.400, while submodular diversity reaches recall 0.391 and $F_1$ 0.397. At $B=6400$, the combined objective with $lambda=2$ reaches the highest reported recall among the highlighted direct submodular variants, 0.524, but its $F_1$ is 0.364 because it includes more non-evidence articles. Top-ranked has lower recall at this budget, 0.492, but better $F_1$ of 0.407. Thus the submodular objective is best read as recall-oriented evidence coverage, not a strict precision optimizer.
-
-#figure(
-  kind: table,
-  three-line-table[
-    | *Budget* | *Method* | *Recall* | *Precision* | *$F_1$* |
-    | :------: | :------- | :------: | :---------: | :----: |
-    | 3200 | Top-ranked | 0.320 | 0.450 | 0.360 |
-    | 3200 | Relevance/token | 0.393 | 0.439 | 0.400 |
-    | 3200 | Submodular diversity | 0.391 | 0.433 | 0.397 |
-    | 6400 | Top-ranked | 0.492 | 0.374 | 0.407 |
-    | 6400 | Combined, $lambda=2$ | 0.524 | 0.290 | 0.364 |
-  ],
-  caption: [Representative evidence-selection results for top-10 candidates.],
-)
+// #figure(
+//   kind: table,
+//   three-line-table[
+//     | *Budget* | *Method* | *Recall* | *Precision* | *$F_1$* |
+//     | :------: | :------- | :------: | :---------: | :----: |
+//     | 3200 | Top-ranked | 0.320 | 0.450 | 0.360 |
+//     | 3200 | Relevance/token | 0.393 | 0.439 | 0.400 |
+//     | 3200 | Submodular diversity | 0.391 | 0.433 | 0.397 |
+//     | 6400 | Top-ranked | 0.492 | 0.374 | 0.407 |
+//     | 6400 | Combined, $lambda=2$ | 0.524 | 0.290 | 0.364 |
+//   ],
+//   caption: [Representative evidence-selection results for top-10 candidates.],
+// )
 
 == Lambda and Precision--Recall Trade-off
 
 For the direct combined selector with top-10 candidates, increasing $lambda$ improves evidence recovery in this run. At budget 3200, $F_1$ rises from 0.320 for $lambda=0.1$ to 0.374 for $lambda=2.0$; at budget 6400, it rises from 0.349 to 0.364. Redundancy also increases slightly, from 0.428 to 0.441 at budget 6400, because the square-root diversity term rewards additional relevance mass rather than explicitly penalizing pairwise similarity.
 
-#figure(
-  kind: table,
-  three-line-table[
-    | *Budget* | *$lambda$* | *Recall* | *Precision* | *$F_1$* | *Redund.* |
-    | :------: | :--------: | :------: | :---------: | :----: | :-------: |
-    | 3200 | 0.1 | 0.314 | 0.347 | 0.320 | 0.407 |
-    | 3200 | 0.5 | 0.325 | 0.357 | 0.330 | 0.414 |
-    | 3200 | 1.0 | 0.338 | 0.368 | 0.342 | 0.416 |
-    | 3200 | 2.0 | 0.370 | 0.402 | 0.374 | 0.426 |
-    | 6400 | 0.1 | 0.502 | 0.278 | 0.349 | 0.428 |
-    | 6400 | 0.5 | 0.506 | 0.280 | 0.351 | 0.432 |
-    | 6400 | 1.0 | 0.508 | 0.283 | 0.354 | 0.437 |
-    | 6400 | 2.0 | 0.524 | 0.290 | 0.364 | 0.441 |
-  ],
-  caption: [Ablation of the combined-objective weight $lambda$ for direct budgeted greedy with top-10 candidates.],
-)
+// #figure(
+//   kind: table,
+//   three-line-table[
+//     | *Budget* | *$lambda$* | *Recall* | *Precision* | *$F_1$* | *Redund.* |
+//     | :------: | :--------: | :------: | :---------: | :----: | :-------: |
+//     | 3200 | 0.1 | 0.314 | 0.347 | 0.320 | 0.407 |
+//     | 3200 | 0.5 | 0.325 | 0.357 | 0.330 | 0.414 |
+//     | 3200 | 1.0 | 0.338 | 0.368 | 0.342 | 0.416 |
+//     | 3200 | 2.0 | 0.370 | 0.402 | 0.374 | 0.426 |
+//     | 6400 | 0.1 | 0.502 | 0.278 | 0.349 | 0.428 |
+//     | 6400 | 0.5 | 0.506 | 0.280 | 0.351 | 0.432 |
+//     | 6400 | 1.0 | 0.508 | 0.283 | 0.354 | 0.437 |
+//     | 6400 | 2.0 | 0.524 | 0.290 | 0.364 | 0.441 |
+//   ],
+//   caption: [Ablation of the combined-objective weight $lambda$ for direct budgeted greedy with top-10 candidates.],
+// )
+
+@precision_recall_tradeoff makes the trade-off explicit. The submodular selectors recover more evidence as budget grows, but gold-evidence precision drops when they include extra context. This behavior is useful when missing evidence is more harmful than adding distractors; if strict precision is preferred, the objective should add stronger cost penalties or a learned evidence-likelihood term.
 
 #figure(
-  image("figures/multihop_q200_docbudget_s13/precision_recall_tradeoff.png", width: 100%),
+  image(
+    "figures/multihop_q200_docbudget_s13/precision_recall_tradeoff.png",
+    width: 80%,
+  ),
   caption: [Precision--recall trade-off as the budget increases from 1600 to 3200 to 6400 for top-10 candidates. Methods that fill more budget tend to move rightward in recall and downward in precision.],
-)
-
-Figure 3 makes the trade-off explicit. The submodular selectors recover more evidence as budget grows, but gold-evidence precision drops when they include extra context. This behavior is useful when missing evidence is more harmful than adding distractors; if strict precision is preferred, the objective should add stronger cost penalties or a learned evidence-likelihood term.
+)<precision_recall_tradeoff>
 
 == Scalability and Greedy Validation
 
-#figure(
-  image("figures/multihop_q200_docbudget_s13/scalability_optimality.png", width: 100%),
-  caption: [Scalability and greedy validation. Panel (a) compares deterministic runtime proxy units at budget 6400. Panel (b) zooms in on exhaustive top-10 checks; the ratios cluster near 1.0, so the direct greedy solutions are usually very close to exact optima on tested instances.],
-)
+@scalability_optimality explains the main engineering result. At budget 6400, direct combined greedy with $lambda=2$ uses 452.0, 2040.0, and 8464.0 runtime-proxy units for $N=10,20,40$. Lazy greedy uses 23.6, 47.5, and 93.6 units on the same settings, because most cached marginal-gain upper bounds do not need full recomputation. The right panel is intentionally zoomed: the mean greedy/optimal ratios are about 0.991 for coverage, 0.990 for diversity, and 0.990 for the combined objective, with medians equal to 1.0.
 
-Figure 4 explains the main engineering result. At budget 6400, direct combined greedy with $lambda=2$ uses 452.0, 2040.0, and 8464.0 runtime-proxy units for $N=10,20,40$. Lazy greedy uses 23.6, 47.5, and 93.6 units on the same settings, because most cached marginal-gain upper bounds do not need full recomputation. The right panel is intentionally zoomed: the mean greedy/optimal ratios are about 0.991 for coverage, 0.990 for diversity, and 0.990 for the combined objective, with medians equal to 1.0.
+#figure(
+  image(
+    "figures/multihop_q200_docbudget_s13/scalability_optimality.png",
+    width: 100%,
+  ),
+  caption: [Scalability and greedy validation. Panel (a) compares deterministic runtime proxy units at budget 6400. Panel (b) zooms in on exhaustive top-10 checks; the ratios cluster near 1.0, so the direct greedy solutions are usually very close to exact optima on tested instances.],
+)<scalability_optimality>
 
 = Discussion and Conclusion
 
