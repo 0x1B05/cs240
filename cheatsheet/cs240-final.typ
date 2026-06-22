@@ -19,7 +19,208 @@
 
 #let reducesto = math.attach($<=$, br: $p$)
 
+- uppper bound:$O()$
+- lower bound:$Omega()$
+- tight bound:$Theta()$
+
+```
+constant < log n < n < n log n < n^a < n^(log n) < 2^n / poly(n) < a^(b^n)
+```
+
 3-SAT $reducesto$ Independent Set $reducesto$ Vertex Cover $reducesto$ Set Cover。
+
+== Greedy: What To Prove
+
+Proof templates:
+- #bluet[Stays ahead]: compare greedy prefix with any optimal prefix.
+  ```
+  Claim: For every k, after k greedy choices, greedy is at least as good as any solution after k choices.
+  Base: k = 1 时成立。
+  Induction: 假设 k 成立，证明 k + 1 也成立。
+  Conclusion: Since greedy never falls behind, if any solution can achieve the goal in k steps, greedy can also achieve it in k steps. Therefore greedy is optimal.
+  ```
+- #bluet[Exchange]: modify an optimal solution to include greedy choice, no worse.(一个区间, 一条边, 一个任务, 一个课程, 一个集合中的元素)
+  ```
+  Let OPT be an optimal solution.If OPT already contains the greedy choice, continue. Otherwise, modify OPT: remove some choice from OPT, add the greedy choice.
+  Show:
+  1. the modified solution is still feasible;
+  2. the modified solution has value no worse than OPT.
+  Therefore, there exists an optimal solution containing the greedy choice. Then solve the remaining subproblem recursively.
+  ```
+- #bluet[Structural]: use cut/cycle/MST property or a bound every solution obeys.
+
+== Greedy Cases
+
+=== Minimizing Maximum Lateness
+Jobs have processing time $t_j$, deadline $d_j$. Completion $C_j$; lateness `L_j=max(0,C_j-d_j)`. Goal: minimize `max_j L_j`.
+Rule: earliest deadline first.
+
+Proof idea: remove adjacent inversions. If $d_i <= d_j$ but `j` before `i`, swap them; max lateness does not increase. Repeating gives EDF.
+
+=== Offline Caching
+Proof: exchange schedule to agree with farthest-in-future one request at a time.
+
+== MST Facts
+
+Cut property：任意一个 cut 上，跨过这个 cut 的最轻边是安全边，存在某棵 MST 包含它。(For any cut, the lightest edge crossing the cut is safe, i.e. it belongs to some MST.)
+Cycle property：任意一个环中，如果某条边严格重于环上其他所有边，那么它不可能出现在任何 MST 中。(In any cycle, if an edge is strictly heavier than all other edges in the cycle, then it belongs to no MST.)
+
+Kruskal：边从小到大；不成环就加 Prim：维护一个连通块；每次加最轻出边 Reverse-delete：边从大到小；删了仍连通就删 k-clustering with maximum spacing: *Kruskal 跑到还剩 $k$ 个连通分量时停下*
+
+== Divide And Conquer
+
+Typical recurrence: $T(n) = a T(n / b) + f(n)$.Master theorem baseline: $n^(log_b a)$.
+- If $f(n)$ smaller: $T = Theta(n^(log_b a))$.
+- If same up to log factors: balanced.
+- If $f(n)$ larger and regular: $T = Theta(f(n))$.
+
+== Closest Pair
+
+Sort points by $x$ and $y$. Split by median $x$. Recursively solve left/right, let $delta$ be min. Only cross pairs inside strip width $2 delta$ can improve. In strip sorted by $y$, compare each point with constant number of following points. Time: $O(n log n)$ if sorted lists maintained; re-sorting inside recursion breaks this.
+
+== FFT / Polynomial Multiplication
+
+*系数表示*，加法方便；*点值表示*下，多项式相乘很方便。
+(Coefficient form: addition is easy. Point-value form: multiplication is easy, since it is pointwise.)
+FFT evaluates at roots of unity fast using $A(x)=A_e(x^2)+x A_o(x^2)$.Pipeline: coefficients -> FFT values -> pointwise multiply -> inverse FFT. Time: $O(n log n)$.
+
+== Dynamic Programming
+
+== Weighted Interval Scheduling
+
+按结束时间排序。`p(j)` = `j` 前最靠右且兼容的任务。`OPT(j)=max(v_j + OPT(p(j)), OPT(j-1))`. 选 `j` / 不选 `j`。Base: `OPT(0)=0`。 恢复方案：看哪一支胜出。二分预处理 `p(j)`，时间 `O(n log n)`。
+
+== 0/1 Knapsack
+
+`OPT(i,w)` = 前 `i` 个物品、容量 `w` 的最大价值。
+
+若 $w_i>w$：`OPT(i,w)=OPT(i-1,w)`。否则：`OPT(i,w)=max(OPT(i-1,w), v_i+OPT(i-1,w-w_i))`。
+
+本质是选 / 不选第 `i` 个。时间 `O(nW)`，伪多项式。
+
+== RNA Secondary Structure
+
+`OPT(i,j)` = 子串 `i..j` 最大配对数。
+
+看 `j`：
+- 不配：`OPT(i,j-1)`；
+- 与合法 `t` 配：`OPT(i,t-1)+1+OPT(t+1,j-1)`。
+
+对所有合法 `t` 取 max。时间 `O(n^3)`，空间 `O(n^2)`。
+
+== Sequence Alignment
+
+`OPT(i,j)` = `X` 前 `i` 个和 `Y` 前 `j` 个的最小对齐代价。
+
+`OPT(i,j)=min( OPT(i-1,j-1)+alpha(x_i,y_j), OPT(i-1,j)+delta, OPT(i,j-1)+delta)`
+
+三种情况：`x_i/y_j` 对齐，`x_i/gap`，`gap/y_j`。
+
+Base: `OPT(i,0)=i delta`, `OPT(0,j)=j delta`。时间/空间 `Theta(mn)`。
+
+线性空间：算 middle column 的 forward/backward cost，找最优切分点递归。时间 `O(mn)`，空间 `O(m+n)`。
+
+== Bellman-Ford
+
+允许负边，但不允许可达负环。DP 视角：`OPT(i,v)` = 从 `v` 到 `t`，最多用 `i` 条边的最短路。
+
+`OPT(i,v)=min(OPT(i-1,v), min_{(v,w) in E} c(v,w)+OPT(i-1,w))`.
+
+含义：不用第 `i` 条边，或先走 `v->w` 再接最多 `i-1` 条边。
+
+`n-1` 轮后最短简单路确定。第 `n` 轮还能变小 => 有可达负环。
+
+套利：汇率乘积 $>1$，用边权 $-log r$ 变成负环检测。
+
+== Flow Basics
+
+Flow value $v(f)$ = net flow out of $s$ = net flow into $t$.
+
+Augmenting path = $s$-$t$ path in residual graph. Bottleneck = min residual capacity.
+
+== Ford-Fulkerson
+
+Correctness comes from max-flow/min-cut, not from arbitrary greediness.
+
+Integral capacities -> there exists integral max flow. With integer capacities, FF augmentations preserve integrality.
+
+Naive FF can depend on capacity value. Capacity scaling improves to about `O(m^2 log C)`.
+
+== Cuts
+
+$s$-$t$ cut: partition `(A,B)` with $s in A$, $t in B$.
+Capacity: sum of capacities of edges from `A` to `B`.
+
+Weak duality: for any flow and cut, `v(f) <= cap(A,B)`.
+
+Max-flow min-cut theorem: `max flow value = min cut capacity`. Equivalent conditions:
+1. Some cut has `v(f)=cap(A,B)`. 2. `f` is max flow. 3. Residual graph has no augmenting path.
+
+No augmenting path proof: let `A` be vertices reachable from `s` in residual graph. Then `t notin A`; forward edges from `A` to `B` are saturated, backward edges carry no cancelable flow, so flow value equals cut capacity.
+
+== Flow Applications
+
+=== Bipartite Matching
+Source -> left vertices cap 1. Left -> right edges cap 1. Right -> sink cap 1. Integral max flow corresponds to matching.
+
+Perfect matching: flow value equals left side size.
+
+Hall condition: perfect matching iff for every left subset $S$, `|N(S)| >= |S|`.
+
+=== Edge-Disjoint Paths
+Set every edge capacity 1. Max flow value = maximum number of edge-disjoint $s$-$t$ paths.
+
+=== Circulation With Demands
+Supplies and demands instead of one source/sink. Add super-source to supplies, demands to super-sink; feasible iff all required edges saturated.
+
+Lower bounds: for edge $(u,v)$ with `l <= f <= c`, set residual capacity `c-l`; account for forced `l` by adjusting node balances.
+
+=== Project Selection
+
+Positive profit project: source -> project cap profit.
+Negative profit/cost: project -> sink cap cost.
+Prerequisite `v needs w`: edge `v -> w` with infinite capacity.
+Min cut chooses closed set maximizing profit.
+
+== Image Segmentation / Baseball
+
+Image segmentation:
+- source/sink = foreground/background;
+- pixel source/sink edges = label preference;
+- neighboring pixel edges = separation penalty;
+- min cut = best labeling.
+
+Baseball elimination:
+- assume team `z` wins all remaining games;
+- game nodes distribute remaining wins among other teams;
+- team -> sink cap = wins allowed before exceeding `z`;
+- all source edges saturated iff `z` not eliminated.
+
+Min cut can give certificate: subset of teams whose unavoidable wins already beat `z`.
+
+== NP Language
+
+- P：能在多项式时间内直接解出来的问题。
+- NP：如果别人给你一个答案，你能在多项式时间内检查它对不对的问题。
+- NP-hard：至少和所有 NP 问题一样难的问题。B 是 NP-hard, 对所有 A in NP，都有 A <=p B。
+- NP-complete：既在 NP 里面，又是 NP-hard 的问题。
+
+P ⊆ NP, NP-complete = NP ∩ NP-hard, NP-hard 不一定属于 NP
+
+常见 NP-complete decision problems：SAT, 3-SAT, Clique, Vertex Cover, Independent Set, Hamiltonian Cycle, Hamiltonian Path, Subset Sum, Partition, 3-Dimensional Matching, Set Cover, TSP decision version, Graph Coloring decision version, e.g. k-coloring for k >= 3
+
+常见 P 问题：2-SAT, Bipartite Matching, Maximum Flow, Minimum Spanning Tree, Shortest Path, Eulerian Cycle, Topological Sort, Testing if graph is bipartite, 2-coloring
+
+== DP 尝试思路
+
+常见尝试：
+- 从左往右：`f(i)` 表示处理 `i..end`，每次决定当前位置怎么用。例：票价、解码。
+- 以某位置结尾：`dp[i]` 表示必须以 `i` 结尾的最优值。例：最长有效括号、递增子序列。
+- 前缀匹配：`dp[i][j]` 表示 `s1` 前 `i` 个和 `s2` 前 `j` 个。例：LCS、编辑距离、不同子序列。
+- 区间范围：`dp[l][r]` 表示子串/区间 `l..r` 的答案。例：回文子序列、涂色、RNA。
+- 背包选择：`dp[i][w]` 表示前 `i` 个物品、容量 `w`。多限制就加维度，如 `dp[i][zero][one]`。
+- 网格路径：`dp[i][j]` 表示到达或从 `(i,j)` 出发的答案；若有余数/步数，再加一维。
+- 树形/分裂：枚举左边规模、右边规模或切分点。例：二叉树结构数、区间 split。
 
 == NP-complete 证明模板
 
@@ -305,11 +506,14 @@ Price of Stability `<= H(k)`。
 - Potential: 势能 `Phi(D)` 表示系统信用。
 
 Potential formula:
+
 ```
 hat(c_i) = c_i + Phi(D_i) - Phi(D_{i-1})
 sum hat(c_i) = sum c_i + Phi(D_m)-Phi(D_0)
 ```
+
 若 `Phi(D_0)=0` 且 `Phi(D_i)>=0`，则
+
 ```
 sum c_i <= sum hat(c_i)
 ```
@@ -320,7 +524,7 @@ sum c_i <= sum hat(c_i)
 - Dynamic table doubling: `Phi=2*num-size`。
 - Fibonacci heap: `Phi=trees+2*marks`。
 
-== HW4 P1 Lazy Write Queue
+== HW4 P1 Lazy Write Queue(*potential method*)
 
 Operations:
 - `Modify(i)`: `dirty[i]=true`，append `i` to FIFO `Q`，即使重复也 append。
@@ -341,7 +545,7 @@ Use `Phi=3|Q|`。`Modify`: actual `O(1)`, `Delta Phi=3` -> `O(1)` amortized。
 
 If `FlushOne` removes `t` entries: actual `<=2t+O(1)`，`Delta Phi=-3t`，amortized `<=O(1)-t=O(1)`。Empty queue constant。
 
-== HW4 P2 Triangular Calibration
+== HW4 P2 Triangular Calibration(*Aggregate Analysis && Accounting method*)
 
 Insertion count `N`。Calibration at triangular numbers
 ```
@@ -350,20 +554,13 @@ T_q = 1+...+q = q(q+1)/2
 q-th calibration costs `q`。
 
 #smallcaps[Number in first n insertions.]
-Largest `q` with `q(q+1)/2 <= n`:
-```
-q = floor((sqrt(8n+1)-1)/2)
-```
+Largest `q` with `q(q+1)/2 <= n`:$q = floor((sqrt(8n+1)-1)/2)$
 
 #smallcaps[Aggregate.]
 Base cost `n`。Calibration cost `1+...+q=T_q<=n`。Total `<=2n`。
 
 #smallcaps[Accounting.]
-Charge each insertion 2. One pays insertion; one saved. Between calibration `q-1` and `q` exactly
-```
-T_q - T_{q-1} = q
-```
-insertions, saved `q` credits pay cost `q`。
+Charge each insertion 2. One pays insertion; one saved. Between calibration `q-1` and `q` exactly $T_q - T_{q-1} = q$ insertions, saved `q` credits pay cost `q`。
 
 == HW4 P3 Tombstone Compaction
 
