@@ -481,6 +481,18 @@ Universe $U=E$. For each vertex $v$, create set $S_v$ containing incident edges.
 #smallcaps[Hamiltonian to TSP.]
 Cities are vertices. Distance 1 for graph edges, 2 for nonedges. Threshold $D=n$. Any tour has $n$ edges, each at least 1; length at most $n$ iff all used adjacencies are original edges.
 
+#smallcaps[Independent Set to Vertex Cover.]
+Input $(G,k) -> (G, |V|-k)$. If $S$ independent, then every edge has at least one endpoint outside $S$, so $V-S$ is a vertex cover. If $C$ is vertex cover, no edge has both endpoints in $V-C$, so $V-C$ is independent.
+
+#smallcaps[Clique to Independent Set.]
+Map graph `G` to complement `bar(G)`. A set is clique in `G` iff it is independent in `bar(G)`.
+
+#smallcaps[3-SAT to 3-Color.]
+Create triangle $T,F,B$. Literal vertices connect to $B$, so they use colors $T/F$. Connect $x$ and $not x$. Clause gadget enforces not all three literals false.
+
+#smallcaps[Dominating Set from Vertex Cover.]
+For each edge $e={u,v}$, add new vertex $x_e$ adjacent to $u,v$. A vertex cover dominates all edge vertices; any dominating set can replace $x_e$ by an endpoint; then each $x_e$ forces one endpoint selected, giving vertex cover.
+
 == NP Gadget Patterns
 
 #smallcaps[Conflict graph.]
@@ -498,31 +510,7 @@ Force each clause to be satisfied: construction should become feasible iff at le
 #smallcaps[Digit gadget.]
 For numeric reductions to Subset Sum, each digit/column represents one constraint. Choose base large enough so no carry occurs; equality of numbers means every column constraint is met.
 
-== More NP Reductions
-
-#smallcaps[Independent Set to Vertex Cover.]
-Input $(G,k) -> (G, |V|-k)$. If $S$ independent, then every edge has at least one endpoint outside $S$, so $V-S$ is a vertex cover. If $C$ is vertex cover, no edge has both endpoints in $V-C$, so $V-C$ is independent.
-
-#smallcaps[Clique to Independent Set.]
-Map graph `G` to complement `bar(G)`. A set is clique in `G` iff it is independent in `bar(G)`.
-
-#smallcaps[3-SAT to 3-Color.]
-Create triangle $T,F,B$. Literal vertices connect to $B$, so they use colors $T/F$. Connect $x$ and $not x$. Clause gadget enforces not all three literals false.
-
-#smallcaps[Dominating Set from Vertex Cover.]
-For each edge $e={u,v}$, add new vertex $x_e$ adjacent to $u,v$. A vertex cover dominates all edge vertices; any dominating set can replace $x_e$ by an endpoint; then each $x_e$ forces one endpoint selected, giving vertex cover.
-
-== PSPACE Snapshot
-
-$PSPACE$: decision problems solvable using polynomial space. $P subset NP subset PSPACE$.
-
-QSAT has alternating quantifiers:
-$exists x_1 forall x_2 exists x_3 ... Phi$.
-Recursive evaluation uses exponential time but polynomial stack space.
-
-Game/planning signal: "first player has winning strategy", "for all opponent responses", "configuration graph exponentially large". Show membership by DFS over states/strategy tree storing only current state and recursion depth. Show hardness by reducing from QSAT, mapping `exists/forall` choices to players.
-
-== HW3 P1
+=== HW3 P1
 
 #smallcaps[题意.] 给定通信 links $L={ell_1,...,ell_n}$、冲突对 $I subset.eq L times L$ 和整数 $k$。问是否存在 $L' subset.eq L$，使 $|L'|>=k$，且没有任何一个冲突对的两个端点都在 $L'$ 中。证明 NP-complete。
 
@@ -537,7 +525,7 @@ Keep the same $k$. Construction time $O(|V|+|E|)$.
 #smallcaps[Correctness.] If $S subset.eq V$ is independent and $|S|>=k$, let $L'={ell_i | v_i in S}$. No edge has both endpoints in $S$, so no interfering pair has both links in $L'$, and $|L'|=|S|>=k$.
 Conversely, if feasible $L'$ has $|L'|>=k$, let $S={v_i | ell_i in L'}$. *If two vertices in $S$ were adjacent, the corresponding links would form an interfering pair inside $L'$, contradiction.* Thus $S$ is independent and $|S|=|L'|>=k$. Hence iff; with NP membership, NP-complete.
 
-== HW3 P2
+=== HW3 P2
 
 #smallcaps[题意.] 校园巡逻点放置问题：给定无向图 $G=(V,E)$ 和整数 $k$，问是否存在 $S subset.eq V$，$|S|<=k$，使每个顶点要么在 $S$ 中，要么与某个 $S$ 中顶点相邻。证明 NP-complete。
 
@@ -548,7 +536,7 @@ Conversely, if feasible $L'$ has $|L'|>=k$, let $S={v_i | ell_i in L'}$. *If two
 #smallcaps[Correctness.] If $C$ is a vertex cover of $G$ with $|C|<=k$, use the same $C$ as patrol points. Every new $x_e$ is adjacent to an endpoint of $e$ in $C$; every non-isolated original vertex not in $C$ has an incident edge whose other endpoint must be in $C$; vertices in $C$ monitor themselves. Thus $C$ dominates $G'$.
 Conversely, let $S$ dominate $G'$, $|S|<=k$. *Replace any selected new vertex $x_e$ for $e=(u,v)$ by either endpoint*, obtaining $C subset.eq V$ with $|C|<=|S|<=k$. For every original edge $e=(u,v)$, *vertex $x_e$ is adjacent only to $u,v$*, so domination of $x_e$ forces at least one endpoint into $C$. Thus $C$ is a vertex cover. Hence iff and NP-complete.
 
-== HW3 P3
+=== HW3 P3
 
 #smallcaps[题意.] Monotone 3-SAT：每个 clause 恰有三个 literal，且每个 clause 要么全正、要么全负。问公式是否可满足。证明 NP-complete。
 
@@ -563,7 +551,7 @@ Every new clause is monotone and has exactly three literals; each old clause cre
 
 #smallcaps[Correctness, backward.] Suppose $phi'$ is satisfied. Restrict to original variables. Already monotone clauses are unchanged. For $(x or y or not z)$, if the original clause were false, then $x="false",y="false",not z="false"$. *The first new clause forces $u_i="true"$, while the second forces $u_i="false"$, contradiction.* For $(x or not y or not z)$, if false, then $x="false",not y="false",not z="false"$; the first new clause forces $u_i="true"$, the second forces $u_i="false"$. Hence every original clause is true. Therefore $phi$ satisfiable iff $phi'$ satisfiable; NP-complete.
 
-== HW3 P4
+=== HW3 P4(Reduction from Subset Sum.)
 
 #smallcaps[题意.] Two-bin partition：给定 items $I$，每个 item 有正整数大小 $s(i)$，两个容量 $B_1,B_2$。问能否把 $I$ 划分为 $I_1,I_2$，使 $sum_{i in I_1}s(i)<=B_1$ 且 $sum_{i in I_2}s(i)<=B_2$。证明 NP-complete。
 
@@ -576,7 +564,7 @@ Conversely, if a feasible partition exists, then
 $sum_{i in I_1}s(i)+sum_{i in I_2}s(i)=A$.
 *The constraints give the left side $<=T+(A-T)=A$, so both constraints are tight*; in particular $sum_{i in I_1}s(i)=T$. Thus the corresponding numbers solve Subset Sum. Hence iff and NP-complete.
 
-== HW3 P5
+=== HW3 P5(Reduction from 3SAT)
 
 #smallcaps[题意.] 给定一个 $m times n$ grid，每个格子为空、黑棋或白棋。允许删除部分棋子，问能否使每行至少剩一个棋子，且每列不能同时含黑白两色棋子。证明 NP-complete。
 
@@ -586,6 +574,16 @@ $sum_{i in I_1}s(i)+sum_{i in I_2}s(i)=A$.
 
 #smallcaps[Correctness.] If $Phi$ is satisfiable, for each variable column $j$: *if $x_j="true"$, remove all white pieces; if $x_j="false"$, remove all black pieces.* Columns become single-color. Since every clause has a true literal, each row keeps at least one corresponding piece.
 Conversely, from any valid grid choose assignment: if column $j$ has a remaining black piece set $x_j="true"$; if it has a white piece set $x_j="false"$; if empty choose arbitrarily. *Column single-color makes the assignment well-defined; nonempty rows make clauses satisfied.* Hence iff and NP-complete.
+
+== PSPACE Snapshot
+
+$PSPACE$: decision problems solvable using polynomial space. $P subset NP subset PSPACE$.
+
+QSAT has alternating quantifiers:
+$exists x_1 forall x_2 exists x_3 ... Phi$.
+Recursive evaluation uses exponential time but polynomial stack space.
+
+Game/planning signal: "first player has winning strategy", "for all opponent responses", "configuration graph exponentially large". Show membership by DFS over states/strategy tree storing only current state and recursion depth. Show hardness by reducing from QSAT, mapping `exists/forall` choices to players.
 
 == FPT
 
