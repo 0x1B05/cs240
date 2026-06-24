@@ -345,8 +345,6 @@ $Y_(i j) = 0, "否则"$
 
 $E[X_i] = E[Y_(i 1) + Y_(i 2) + ... + Y_(i m)] = E[Y_(i 1)] + E[Y_(i 2)] + ... + E[Y_(i m)] = m * (1/n) = m/n$
 
-Chernoff for one machine, union bound for max load across all machines.
-
 Chernoff upper bound 是： $Pr[X_i >= (1 + d) * mu] <= exp(-mu * d^2 / 3)$
 
 我们通常把单个对象的失败概率压到 $1/n^c$， 例如 $1/n^3$。然后n 个对象 union bound 后仍然很小。
