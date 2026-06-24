@@ -10,15 +10,9 @@
 )
 
 #set text(lang: "zh")
-#let Pr = math.op("Pr")
-#let E = math.op("E")
 #let Var = math.op("Var")
-#let P = math.op("P")
 #let OPT = math.op("OPT")
 #let ALG = math.op("ALG")
-#let O = math.op("O")
-#let Theta = math.op("Theta")
-#let Omega = math.op("Omega")
 #let cost = math.op("cost")
 #let poly = math.op("poly")
 #let NP = math.op("NP")
@@ -28,18 +22,12 @@
 #let Delta = math.op("Delta")
 #let cross = math.op("cross")
 #let same = math.op("same")
-#let prod = math.op("prod")
-#let binom = math.op("binom")
-#let floor = math.op("floor")
-#let max = math.op("max")
-#let min = math.op("min")
 #let finish = math.op("finish")
-#let deg = math.op("deg")
-#let ln = math.op("ln")
-#let approx = math.op("approx")
 #let cap = math.op("cap")
-#let Geo = math.op("Geo")
 #let reducesto = math.attach($<=$, br: $p$)
+#let key(body) = text(fill: rgb("#125a9c"), weight: "bold")[#body]
+#let warn(body) = text(fill: rgb("#b42318"), weight: "bold")[#body]
+#let formula(body) = text(fill: rgb("#6C2BD9"), weight: "bold")[#body]
 
 Upper bound: $O(...)$; lower bound: $Omega(...)$; tight bound: $Theta(...)$.
 
@@ -48,7 +36,7 @@ $"constant" < log n < n < n log n < n^a < n^(log n) < 2^n / poly(n) < a^(b^n)$
 = Greedy Review
 
 #smallcaps[Core idea.]
-Build solution step by step. Make the best local choice and never revisit earlier decisions. Greedy is correct only when the local rule is *safe*.
+Build solution step by step. Make the best local choice and never revisit earlier decisions. Greedy is correct only when the local rule is #key[safe].
 
 #smallcaps[General framework.]
 1. Order candidates by local priority: finish time, deadline, edge weight, future request time.
@@ -60,14 +48,14 @@ Build solution step by step. Make the best local choice and never revisit earlie
 Greedy-choice property: some optimal solution starts with greedy choice. Optimal substructure: after greedy choice, remaining subproblem is same type.
 
 #smallcaps[Proof toolkit.]
-*Stays ahead*: compare greedy prefix with any solution after each step. Show greedy is never worse.
+#key[Stays ahead]: compare greedy prefix with any solution after each step. Show greedy is never worse.
 
-*Exchange*: start from optimal solution. If it lacks greedy choice, swap in greedy choice; show feasibility and value no worse.
+#key[Exchange]: start from optimal solution. If it lacks greedy choice, swap in greedy choice; show feasibility and value no worse.
 
-*Structural*: use theorem/invariant, e.g. MST cut/cycle property.
+#key[Structural]: use theorem/invariant, e.g. MST cut/cycle property.
 
 #smallcaps[Exam checklist.]
-objective -> local rule -> feasibility condition -> counterexample to tempting wrong rules -> proof template -> complexity.
+#key[objective -> local rule -> feasibility condition -> counterexample -> proof template -> complexity.]
 
 == Greedy Cases
 
@@ -198,10 +186,13 @@ $T(n) = 2T(n/2) + O(n)$.
 Recursion tree: level $i$ has $2^i$ subproblems of size $n/2^i$, total merge cost $n$; height $log n$; total $T(n)=O(n log n)$.
 
 #smallcaps[Master theorem.]
-Typical recurrence: $T(n) = a T(n / b) + f(n)$.Master theorem baseline: $n^(log_b a)$.
+Typical recurrence: $T(n) = a T(n / b) + f(n)$. Master theorem baseline: $n^(log_b a)$.
 - If $f(n)$ smaller: $T = Theta(n^(log_b a))$.
 - If same up to log factors: balanced. $T(n) = Theta(n^(log_b a) * log n)$
 - If $f(n)$ larger and regular: $T = Theta(f(n))$.
+
+#smallcaps[Short-answer signal.]
+For divide-and-conquer, state split count/size, combine cost, recurrence, and final asymptotic bound. Log factors usually come from recursion depth; do not confuse $O(log n)$ with $O(n log n)$.
 
 = Dynamic Programming
 
@@ -219,7 +210,10 @@ Polynomial number of overlapping subproblems with natural ordering. Optimal solu
 Prefix: $OPT(i)$ first $i$ items. Interval: $OPT(i, j)$ substring/range. Knapsack: $OPT(i, w)$. Tree DP: include/exclude node.
 
 #smallcaps[Proof.]
-Induct on subproblem size/order. Show recurrence exhausts all cases of an optimal solution and uses correct smaller optimal values.
+Induct on subproblem size/order. #key[Show recurrence exhausts all cases] of an optimal solution and uses correct smaller optimal values.
+
+#smallcaps[Exam state checklist.]
+#key[state meaning -> transition -> base case -> computation order -> returned answer -> time/space.]
 
 DP 常见尝试：
 - 从左往右：`f(i)` 表示处理 `i..end`，每次决定当前位置怎么用。例：票价、解码。
@@ -339,8 +333,11 @@ Augmenting path: $s-t$ path in residual graph. Bottleneck = minimum residual cap
 #smallcaps[Ford-Fulkerson.]
 Initialize $f(e)=0$. While residual graph has augmenting path $P$, augment along $P$ by bottleneck. Stop when no augmenting path.
 
+#smallcaps[FF writing points.]
+#key[Residual edge capacities:] forward $c(e)-f(e)$, backward $f(e)$. #key[Augmenting path:] any $s-t$ path in $G_f$; update by bottleneck. To output a min cut after FF, take vertices reachable from $s$ in final residual graph.
+
 #smallcaps[Max-flow/min-cut.]
-Equivalent conditions:
+#key[Equivalent conditions:]
 1. There exists cut $(A,B)$ with $v(f)=cap(A, B)$.
 2. $f$ is a max flow.
 3. There is no augmenting path in residual graph.
@@ -350,7 +347,7 @@ Proof when no augmenting path: let $A$ be vertices reachable from $s$ in $G_f$. 
 == Flow Applications
 
 #smallcaps[Bipartite matching.]
-Source to each left vertex cap 1; left-right edges cap 1; right vertices to sink cap 1. Integral max flow corresponds to matching. Perfect matching iff flow value equals left side size.
+Source to each left vertex cap 1; left-right edges cap 1; right vertices to sink cap 1. #key[Integral max flow corresponds to matching.] Perfect matching iff flow value equals left side size.
 
 #smallcaps[Edge-disjoint paths.]
 Set every edge capacity 1. Max number of edge-disjoint $s-t$ paths equals max flow value.
@@ -413,8 +410,8 @@ Complexity theory usually asks yes/no questions. Many search/optimization versio
 
 == Polynomial Reduction
 
-To prove target problem $A$ hard, reduce from known hard problem $B$:
-$B reducesto A$.
+#key[To prove target problem $A$ hard, reduce from known hard problem $B$:]
+#formula[$B reducesto A$].
 Meaning: if we can solve $A$, then we can solve $B$; hence $A$ is at least as hard as $B$.
 
 #smallcaps[Karp reduction.]
@@ -422,14 +419,14 @@ Given instance $b$ of $B$, construct one instance $a=f(b)$ of $A$ in polynomial 
 $b " is YES for " B <==> a " is YES for " A$.
 
 #smallcaps[NP-complete proof.]
-1. Show $A in NP$: certificate + verifier.
-2. Choose known NP-complete $B$.
-3. Construct $f(b)$ in polynomial time.
-4. Prove both directions of iff.
+1. #key[Show $A in NP$]: certificate + verifier.
+2. #key[Choose known NP-complete $B$.]
+3. #key[Construct $f(b)$ in polynomial time.]
+4. #key[Prove both directions of iff.]
 Conclusion: $A$ is NP-hard and in NP, so NP-complete.
 
 #smallcaps[Common mistakes.]
-Wrong direction; missing one direction; proving intuition but not certificate/verifier; forgetting construction time.
+#warn[Wrong direction]; #warn[missing one direction]; proving intuition but not certificate/verifier; forgetting construction time.
 
 == NP-complete Problems
 
@@ -437,20 +434,20 @@ Wrong direction; missing one direction; proving intuition but not certificate/ve
 Given Boolean formula $phi$, decide whether there exists truth assignment $alpha$ such that $phi(alpha)="true"$. Certificate: $alpha$. Use as the first satisfiability source; constraints are encoded by clauses/gadgets.
 
 #smallcaps[3-SAT.] SAT 的标准版本；公式是 CNF，每个 clause 恰好 3 个 literal。
-Given $phi=C_1 and ... and C_m$, where each $C_i$ has exactly three literals, decide whether some assignment satisfies all clauses. Certificate: assignment. Common use: *variables become choices; clauses become demands that at least one literal choice must satisfy*.
+Given $phi=C_1 and ... and C_m$, where each $C_i$ has exactly three literals, decide whether some assignment satisfies all clauses. Certificate: assignment. Common use: #key[variables become choices; clauses become demands].
 
 #smallcaps[Independent Set.]
 在图里选至少 $k$ 个点，要求选中的点两两之间没有边；适合表示“冲突不能共存”。
-Given graph $G=(V,E)$ and integer $k$, decide whether there exists $S subset.eq V$ with $|S|>=k$ and for all $(u,v) in E$, not both $u,v in S$. Certificate: vertex set $S$. Use when feasible objects are choices and edges encode conflicts.
+Given graph $G=(V,E)$ and integer $k$, decide whether there exists $S subset.eq V$ with $|S|>=k$ and for all $(u,v) in E$, not both $u,v in S$. Certificate: vertex set $S$. Use when #key[choices conflict].
 
 #smallcaps[Vertex Cover.]
 在图里选至多 $k$ 个点，要求每条边至少被一个选中端点覆盖；适合表示“每个冲突/需求必须被处理一次”。
 English form: Given graph $G=(V,E)$ and integer $k$, decide whether there exists $C subset.eq V$ with $|C|<=k$ such that for every edge $(u,v) in E$, $u in C$ or $v in C$. Certificate: vertex set $C$.
-Key relation: $S " independent" <==> V-S " vertex cover"$, so $(G,k)_"IS" -> (G, |V|-k)_"VC"$.
+Key relation: #formula[$S " independent" <==> V-S " vertex cover"$], so $(G,k)_"IS" -> (G, |V|-k)_"VC"$.
 
 #smallcaps[Set Cover.]
 给 universe 和若干集合，问能否用不超过 $k$ 个集合覆盖所有元素；适合表示“需求元素必须被某个选择覆盖”。
-Given universe $U$, sets $S_1,...,S_m subset.eq U$, and integer $k$, decide whether there exists index set $I$ with $|I|<=k$ and $union_(i in I) S_i = U$. Certificate: chosen set indices. Use when choices cover demands; VC reduces by setting $U=E$ and one set per vertex.
+Given universe $U$, sets $S_1,...,S_m subset.eq U$, and integer $k$, decide whether there exists index set $I$ with $|I|<=k$ and $union_(i in I) S_i = U$. Certificate: chosen set indices. Use when #key[choices cover demands]; VC reduces by setting $U=E$ and one set per vertex.
 
 #smallcaps[Clique.] 在图里选至少 $k$ 个点，要求任意两点之间都有边；适合表示“所有选择必须互相兼容”。
 Given graph $G=(V,E)$ and integer $k$, decide whether there exists $K subset.eq V$ with $|K|>=k$ and every pair in $K$ is adjacent. Certificate: vertex set $K$. Key relation: clique in $G$ iff independent set in complement graph $bar(G)$.
@@ -597,6 +594,7 @@ For NP-complete problems, cannot expect polynomial-time exact algorithms for arb
 Definition:
 $"time" = f(k) dot poly(n)$.
 The exponential part depends only on parameter $k$, not on input size $n$.
+#warn[Not FPT] if the exponent of $n$ depends on $k$, e.g. $n^k$. If $k$ can be as large as $n$, the guarantee may be impractical even when the form is FPT.
 
 #smallcaps[Brute force is not FPT.]
 Trying all size-$k$ subsets takes:
@@ -628,25 +626,25 @@ Practical for small $k$; polynomial if $k=O(log n / log log n)$.
 
 Template: define search space, neighbor relation, improvement rule, stopping condition.
 
-Proof goals: every step improves potential/objective; finite states imply termination; local optimum gives exact/approx/equilibrium guarantee.
+#key[Proof goals:] every step improves potential/objective; finite states imply termination; local optimum gives exact/approx/equilibrium guarantee.
 
 #smallcaps[Vertex Cover deletion.]
 Start with $S=V$. If removing one vertex keeps a vertex cover, remove it. Terminates in at most $n$ removals. Only one-delete local optimum, not necessarily global optimum.
 
 #smallcaps[Max-Cut local search.]
 Partition vertices into $(A,B)$. If flipping one vertex increases cut size, flip it. At local optimum, for every vertex $v$:
-$cross(v) >= same(v)$.
+#formula[$cross(v) >= same(v)$].
 Summing over all vertices:
-$2 dot "cut" >= 2 dot "internal"$, $"total edges" <= 2 dot "cut"$, $OPT <= "total edges"$, hence $"cut" >= OPT/2$.
+$2 dot "cut" >= 2 dot "internal"$, $"total edges" <= 2 dot "cut"$, $OPT <= "total edges"$, hence #formula[$"cut" >= OPT/2$].
 So single-flip local optimum is a $2$-approximation.
 
 #smallcaps[Big improvement flips.]
-To bound iterations, accept only sufficiently large improvement. This prevents many tiny gains; approximation weakens to about $2+epsilon$.
+To bound iterations, accept only sufficiently large improvement. This prevents many tiny gains; approximation weakens to about $2+epsilon$. #key[Threshold/bar trades accuracy for polynomial iteration bound.]
 
 == Local Search Details
 
 #smallcaps[Generic termination.]
-If every move strictly improves an integer objective bounded by polynomial/exponential range and state space finite, algorithm terminates. But termination need not be polynomial unless improvement size or number of states is bounded.
+If every move strictly improves an integer objective bounded by polynomial/exponential range and state space finite, algorithm terminates. #warn[Termination need not be polynomial] unless improvement size or number of states is bounded.
 
 #smallcaps[Max-Cut weighted.]
 For weighted graph, same proof uses weights:
@@ -654,7 +652,7 @@ $"cross weight"(v) >= "same-side weight"(v)$.
 Sum over vertices; each edge counted twice on one side of inequality. Get $"cut" >= "total_weight"/2 >= OPT/2$.
 
 #smallcaps[Best response.]
-Best response dynamics may cycle if no potential exists. In fair cost sharing, Rosenthal potential is an exact potential, so every selfish improvement decreases the same global function.
+Best response dynamics may cycle if no potential exists. In fair cost sharing, #key[Rosenthal potential is an exact potential], so every selfish improvement decreases the same global function.
 
 == Nash / Cost Sharing
 
@@ -664,11 +662,11 @@ $c_e / x_e$.
 Nash equilibrium: no agent can lower its own cost by unilaterally switching path. Social optimum minimizes total cost of used edges. They need not be equal.
 
 Rosenthal potential:
-$Phi(P)=sum_e c_e dot H(x_e)$, where $H(x)=1+1/2+...+1/x$.
-When one agent changes path, its cost change equals $Delta Phi$. Therefore strict best response strictly decreases $Phi$; finite strategy space implies convergence to Nash.
+#formula[$Phi(P)=sum_e c_e dot H(x_e)$], where $H(x)=1+1/2+...+1/x$.
+#key[When one agent changes path, its cost change equals $Delta Phi$.] Therefore strict best response strictly decreases $Phi$; finite strategy space implies convergence to Nash.
 
 Bounds:
-$C(P) <= Phi(P) <= H(k) C(P)$.
+#formula[$C(P) <= Phi(P) <= H(k) C(P)$].
 Starting from social optimum and following best responses gives a Nash equilibrium with cost at most $H(k)$ times optimum. Price of stability $<=H(k)$.
 
 = Amortized Analysis
@@ -680,13 +678,16 @@ Methods:
 - Accounting: charge operations credits; store credit on objects.
 - Potential: store credit in state function.
 
-Potential formula:
-$hat(c_i)=c_i + Phi(D_i)-Phi(D_(i-1))$.
-If $Phi(D_0)=0$ and $Phi(D_i)>=0$, then:
+#key[Potential formula:]
+#formula[$hat(c_i)=c_i + Phi(D_i)-Phi(D_(i-1))$].
+If #formula[$Phi(D_0)=0$] and #formula[$Phi(D_i)>=0$], then:
 $sum "actual" <= sum "amortized"$.
 
 #smallcaps[Protocol.]
 Show a single call can be large if asked. Identify objects causing large work. Show each object is created and consumed $O(1)$ times. For potential/accounting, choose credit matching stored future work.
+
+#smallcaps[Proof flow.]
+#key[Identify expensive/cheap operations -> bound total expensive work -> choose aggregate/accounting/potential -> compute amortized cost per operation.] For potential proofs, always write initial potential, nonnegativity, actual cost, $Delta Phi$, and amortized cost.
 
 == Amortized Templates
 
@@ -748,7 +749,7 @@ $X_E=1$ if $E$ occurs, else $0$; $E[X_E]=Pr[E]$.
 
 Linearity:
 $E[X_1+...+X_n]=E[X_1]+...+E[X_n]$.
-No independence required.
+#key[No independence required.]
 
 == Geometric Distribution(*Las Vegas*)
 
@@ -756,7 +757,7 @@ Repeated independent trials until first success. Each trial succeeds with probab
 
 $Pr[R = k] = (1 - p)^(k - 1) * p$
 
-$E[R] = 1 / p$ Derivation: $E = p * 1 + (1 - p) * (1 + E)$
+#formula[$E[R] = 1 / p$] Derivation: $E = p * 1 + (1 - p) * (1 + E)$
 
 $(1 - p)^t <= e^(-p t)$:  $Pr[R > t] = (1 - p)^t <= e^(-p t)$
 
@@ -772,13 +773,13 @@ Rough one-sided bound from expectation only.
 Chebyshev: finite variance, $Pr[|X-E[X]|>=a] <= Var[X]/a^2$.
 Two-sided deviation without distribution assumptions.
 
-Chernoff: independent 0/1 indicators, $X=sum X_i$, $mu=E[X]$.
+Chernoff: #warn[independent 0/1 indicators required], $X=sum X_i$, $mu=E[X]$.
 For $0<=delta<=1$:
 $Pr[X >= (1+delta) mu] <= e^(-mu delta^2/3)$, and $Pr[X <= (1-delta) mu] <= e^(-mu delta^2/2)$.
 For $delta>1$:
 $Pr[X >= (1+delta) mu] <= e^(-mu delta ln delta/3)$.
 
-Union bound: no independence needed.
+Union bound: #key[no independence needed].
 $Pr[union_i E_i] <= sum_i Pr[E_i]$.
 Use: first bound failure for one fixed object, then extend to any object fails.
 
@@ -791,7 +792,7 @@ Use when only know expectation and variable nonnegative. Example: $Pr[X>=2E[X]]<
 Use when variance known. For $a>0$, deviation by at least $a$ has probability at most $Var[X]/a^2$.
 
 #smallcaps[Chernoff.]
-Use for independent indicator sum. To make upper-tail probability $<=epsilon$, ensure:
+Use for #warn[independent indicator sum]. To make upper-tail probability $<=epsilon$, ensure:
 $mu delta^2/3 >= ln(1/epsilon)$.
 for $0<=delta<=1$.
 
@@ -812,12 +813,12 @@ Static set, two levels. First hash partitions keys into buckets of sizes $n_i$; 
 
 #smallcaps[Bloom filter.]
 Array of $m$ bits, $k$ hash functions. Insert sets all $k$ positions to 1; query returns yes iff all $k$ positions are 1.
-No false negatives. False positives possible:
-$Pr["FP"] approx (1-e^(-k n / m))^k$ after $n$ inserts.
+#key[No false negatives.] False positives possible:
+#formula[$Pr["FP"] approx (1-e^(-k n / m))^k$] after $n$ inserts.
 Ordinary Bloom filters cannot delete safely; use counting Bloom filters for deletion.
 
 #smallcaps[Fingerprinting.]
-For string equality, compare compact randomized fingerprints instead of full strings. If two inputs differ, collision probability is small because the random modulus/evaluation point must hit a limited set of bad choices. Monte Carlo: one-sided error if equal fingerprints are accepted as equal.
+For string equality, compare compact randomized fingerprints instead of full strings. If two inputs differ, collision probability is small because the random modulus/evaluation point must hit a limited set of bad choices. #warn[Monte Carlo: one-sided error] if equal fingerprints are accepted as equal.
 
 == Random Analysis Patterns
 
@@ -833,7 +834,7 @@ $Pr["compare " i,j]=2/(j-i+1)$, and $E["comparisons"]=sum_{i<j} 2/(j-i+1)=O(n lo
 
 #smallcaps[Karger min-cut.]
 Fix min cut of size $k$. At $n'$ supernodes, min degree at least $k$, so edges $>= k n'/2$; probability of contracting cut edge $<=2/n'$. Survival probability:
-$prod_{i=n " down to " 3} (1-2/i)=2/(n(n-1))$.
+$product_{i=n " down to " 3} (1-2/i)=2/(n(n-1))$.
 Repeat $O(n^2 log(1/delta))$ times for failure $<=delta$.
 
 == Probability Quick Facts
@@ -916,7 +917,7 @@ $Pr[X=0]=binom(n-r, s)/binom(n, s)$,
 interpreting the numerator as $0$ if $s>n-r$.
 
 *(c)* For $s<=n-r$,
-$Pr[X=0]=prod_{i=0}^{s-1} frac {n-r-i}{n-i} <= (1-r/n)^s <= e^(-r s/n)$.
+$Pr[X=0]=product_{i=0}^{s-1} frac {n-r-i}{n-i} <= (1-r/n)^s <= e^(-r s/n)$.
 The same bound is trivial when $s>n-r$ since the left side is $0$. To get $Pr[X>=1]>=1-delta$, it suffices that $e^(-r s/n)<=delta$, i.e.
 *$s >= (n/r) ln(1/delta)$*.
 If the required integer exceeds $n$, audit all $n$ submissions; when $r>0$, failure probability is $0$.
@@ -956,16 +957,16 @@ Linearity does not require independence. If $G$ is $d$-regular and $|V|=n$, then
 Every run/input satisfies ratio, e.g. list scheduling output $M<=2M^*$.
 
 #smallcaps[Expected approximation.]
-Only expectation over random choices satisfies ratio, e.g. random Max-Cut $E[ALG]>=OPT/2$.
+Only expectation over random choices satisfies ratio, e.g. random Max-Cut #formula[$E[ALG]>=OPT/2$].
 
-For maximization: $ALG >= OPT / alpha$.
-For minimization: $ALG <= alpha dot OPT$.
+For maximization: #formula[$ALG >= OPT / alpha$].
+For minimization: #formula[$ALG <= alpha dot OPT$].
 $alpha >= 1$; closer to 1 is better.
 
-Expected approximation: for randomized algorithms, replace $ALG$ by $E[ALG]$.
+Expected approximation: for randomized algorithms, #key[replace $ALG$ by $E[ALG]$].
 
 #smallcaps[Proof protocol.]
-Maximization: upper bound $OPT$, lower bound $ALG$. Minimization: lower bound $OPT$, upper bound $ALG$. State ratio explicitly.
+Maximization: upper bound $OPT$, lower bound $ALG$. Minimization: lower bound $OPT$, upper bound $ALG$. #key[State ratio explicitly.]
 
 == Set Cover Greedy
 
@@ -1002,13 +1003,13 @@ So greedy is $H_n$-approximation, i.e. $O(log n)$.
 Makespan scheduling: $n$ jobs, $m$ identical machines, processing times $p_j$. Minimize max load $M$.
 
 Lower bounds:
-$M^* >= max_j p_j$ and $M^* >= (sum_j p_j)/m$.
+#formula[$M^* >= max_j p_j$] and #formula[$M^* >= (sum_j p_j)/m$].
 
 #smallcaps[List Scheduling.]
 Assign each job to currently least loaded/first available machine. Let last finishing job have start time $T$, processing time $t$. Output $M=T+t$.
 
 Before $T$, no machine was idle, so optimal must satisfy $M^*>=T$. Also $M^*>=t$.
-$M=T+t <= 2 max(T, t) <= 2M^*$.
+#formula[$M=T+t <= 2 max(T, t) <= 2M^*$].
 Thus list scheduling is $2$-approximation.
 
 #smallcaps[LPT.]
@@ -1023,14 +1024,14 @@ $Pr[e " crosses"] = Pr[u " L, " v " R"]+Pr[u " R, " v " L"] = 1/4+1/4=1/2$, so $
 Cut size $X=sum_e X_e$. If graph has $m$ edges:
 $E[X]=m/2$.
 Since $OPT<=m$, randomized cut is expected $2$-approximation:
-$E[ALG] = m/2 >= OPT/2$.
+#formula[$E[ALG] = m/2 >= OPT/2$].
 
 == More Approximation
 
 #smallcaps[Random vs local-search Max-Cut.]
 Random assignment gives an expected guarantee:
 $E[ALG] >= OPT/2$.
-One run can be worse. Local search gives a deterministic actual `2`-approximation because every local optimum satisfies $"cut" >= OPT/2$.
+One run can be worse. Local search gives a deterministic actual `2`-approximation because every local optimum satisfies #formula[$"cut" >= OPT/2$].
 
 #smallcaps[Set cover tight proof shape.]
 Always define charges so total charge equals algorithm cost. Then bound each element's charge by $OPT / (#" uncovered at that moment")$.
@@ -1041,25 +1042,25 @@ Many small jobs first, one big job last makes list scheduling approach ratio 2. 
 = Final Exam Writing
 
 #smallcaps[Greedy.]
-State objective/local rule/feasibility. Use stays-ahead, exchange, or structural proof. Give complexity.
+#key[State objective/local rule/feasibility.] Use stays-ahead, exchange, or structural proof. Give complexity.
 
 #smallcaps[DP.]
-Define state, recurrence, base cases, computation order, answer, complexity.
+#key[Define state, recurrence, base cases, computation order, answer, complexity.]
 
 #smallcaps[Flow.]
-Model nodes/edges/capacities. Explain integral flow if using matching/assignment. Correctness: feasible solution <-> flow.
+#key[Model nodes/edges/capacities.] Explain integral flow if using matching/assignment. Correctness: feasible solution <-> flow.
 
 #smallcaps[NP-complete.]
-Membership in NP; known source problem; construction; iff proof; polynomial time.
+#key[Membership in NP; known source problem; construction; iff proof; polynomial time.]
 
 #smallcaps[Amortized.]
-Single bad operation if asked; aggregate count or potential. Check nonnegative initial potential.
+Single bad operation if asked; aggregate count or potential. #warn[Check nonnegative initial potential.]
 
 #smallcaps[Random.]
 Define indicators; compute individual probability; sum expectations. For failure probability, write exact bad event first, then bound.
 
 #smallcaps[Approx.]
-State ratio definition and prove inequality against $OPT$.
+#key[State ratio definition] and prove inequality against $OPT$.
 
 == Common Syntax For Proofs
 
@@ -1103,21 +1104,21 @@ or ALG >= OPT/alpha         (max).
 
 == Exam Failure Modes
 
-Reduction direction: to prove `A` hard, reduce known hard `B` to `A`, not `A` to `B`.
+#warn[Reduction direction:] to prove `A` hard, reduce known hard `B` to `A`, not `A` to `B`.
 
-Decision vs optimization: NP-complete statements are about yes/no versions. State threshold `k,D,B` explicitly.
+#warn[Decision vs optimization:] NP-complete statements are about yes/no versions. State threshold `k,D,B` explicitly.
 
-Pseudo-polynomial: $O(n W)$ is not polynomial in input length if $W$ is binary encoded.
+#warn[Pseudo-polynomial:] $O(n W)$ is not polynomial in input length if $W$ is binary encoded.
 
-Expected value: $E[ALG]>=OPT/2$ does not mean every run is $2$-approx.
+#warn[Expected value:] $E[ALG]>=OPT/2$ does not mean every run is $2$-approx.
 
-Linearity: does not require independence. Chernoff does require independent indicator sum.
+#warn[Linearity:] does not require independence. Chernoff does require independent indicator sum.
 
-Potential: must be nonnegative and initially zero or account for initial/final difference.
+#warn[Potential:] must be nonnegative and initially zero or account for initial/final difference.
 
-Set cover: overlapping coverage is allowed; this is not exact cover.
+#warn[Set cover:] overlapping coverage is allowed; this is not exact cover.
 
-Vertex cover vs independent set: cover chooses points touching every edge; independent set chooses points containing no edge.
+#warn[Vertex cover vs independent set:] cover chooses points touching every edge; independent set chooses points containing no edge.
 
 == Compact Formula Box
 
